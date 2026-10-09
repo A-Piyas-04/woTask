@@ -105,6 +105,31 @@ export const MOTION = {
   panFriction: 4.5,
   /** Label show/hide fade, ms. */
   labelFadeMs: 150,
+  /**
+   * DOM motion. The scene is damped per frame; the chrome is not, so it needs its own durations and
+   * curves. Published as CSS custom properties by `applyTheme`, so no stylesheet hardcodes a timing.
+   *
+   * Two curves, used consistently: things arriving decelerate into place, things leaving accelerate
+   * away. A panel that eased out on the way in and on the way out would feel slack.
+   */
+  ui: {
+    /** Panels and dialogs. */
+    panelMs: 200,
+    /** Panel exit, deliberately quicker than entry: getting out of the way should not be savoured. */
+    panelOutMs: 130,
+    /** Hovers, presses, chips, rows - anything that should feel immediate. */
+    quickMs: 120,
+    /** Per-row delay when a list staggers in. */
+    staggerMs: 22,
+    /** How long an inline "saved" acknowledgement stays up. */
+    ackMs: 1100,
+    /** Decelerating, for things entering. */
+    out: 'cubic-bezier(0.16, 1, 0.3, 1)',
+    /** Accelerating, for things leaving. */
+    in: 'cubic-bezier(0.4, 0, 1, 1)',
+    /** Symmetric, for things that merely change. */
+    inOut: 'cubic-bezier(0.4, 0, 0.2, 1)',
+  },
 } as const;
 
 export interface PriorityStyle {

@@ -55,6 +55,7 @@ function subtitle(zone: Zone, stats: SpaceStats): string {
     return parts.join(' · ');
   }
   if (total === 0) return 'empty — press N to add';
+  if (stats.open === 0) return total === 1 ? 'done' : 'all done';
   return `${stats.open} open · ${stats.done} done`;
 }
 

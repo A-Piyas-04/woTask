@@ -205,6 +205,116 @@ await page.keyboard.press('Enter');
 await page.waitForSelector('.space-row', { timeout: 5000 }).catch(() => null);
 check('creating the first space dismisses onboarding', (await page.$('.onboarding')) === null && (await activeSpace()) === 'Thesis');
 
+// ---------------------------------------------------------------------------------------------
+// Selection bar, explicit completion, chains and confirmations.
+// ---------------------------------------------------------------------------------------------
+await page.goto(`${url}?seed=forks`);
+await page.waitForSelector('.orb-title', { timeout: 20000 });
+await settle(1200);
+
+const barTitle = () => page.$eval('.selection-bar .sel-title', (e) => e.textContent).catch(() => null);
+const pick = async (query) => {
+  await page.keyboard.press('Control+k');
+  await settle(250);
+  await page.keyboard.type(query);
+  await settle(300);
+  await page.keyboard.press('Enter');
+  await settle(500);
+};
+
+check('no selection bar until something is selected', (await page.$('.selection-bar')) === null);
+await page.keyboard.press('ArrowDown');
+await settle(400);
+check('selection bar names the selected task', (await barTitle()) !== null, String(await barTitle()));
+
+// A locked task refuses the quiet path and explains itself.
+await pick('integration');
+check('palette selects a locked task', (await barTitle()) === 'Client integration tests', String(await barTitle()));
+check('selection bar shows the blocker', (await page.$('.sel-blocked')) !== null);
+check('locked check button is marked', (await page.$('.sel-check[data-locked]')) !== null);
+
+await page.keyboard.press('Space');
+await settle(400);
+const confirmText = await page.$eval('.confirm-card', (e) => e.textContent ?? '').catch(() => '');
+check('completing a locked task asks first', confirmText.includes('out of order') && confirmText.includes('Build the client'), confirmText.slice(0, 90));
+check('the locked task is not completed yet', (await page.$$eval('.orb-label.is-done', (e) => e.length)) === 1);
+await page.screenshot({ path: join(outDir, '08-complete-confirm.png') });
+
+await page.keyboard.press('Escape');
+await settle(300);
+check('Esc dismisses the confirmation', (await page.$('.confirm-card')) === null);
+
+// The soft lock lets you through when you insist.
+await page.keyboard.press('Space');
+await settle(300);
+await page.click('.confirm-card .btn-primary');
+await settle(700);
+check('Complete anyway completes it', (await page.$$eval('.orb-label.is-done', (e) => e.length)) === 2);
+check('and it reads as out of order', (await page.$('.orb-label.is-out-of-order')) !== null);
+
+// Completing a blocker releases its successors.
+await page.goto(`${url}?seed=chains`);
+await page.waitForSelector('.orb-title', { timeout: 20000 });
+await settle(1200);
+const lockedCount = () => page.$$eval('.orb-label.is-locked', (e) => e.length);
+const beforeUnlock = await lockedCount();
+await pick('Draft the schema');
+check('chain head is not locked', (await page.$('.sel-check[data-locked]')) === null);
+await page.keyboard.press('Space');
+await settle(900);
+check('completing a blocker unlocks exactly one successor', (await lockedCount()) === beforeUnlock - 1, `${beforeUnlock} -> ${await lockedCount()}`);
+
+// Linking: L, then pick a blocker from the detail panel.
+await pick('Unrelated loose task');
+await page.keyboard.press('l');
+await settle(300);
+check('L announces link mode', (await page.$('.linking-banner')) !== null);
+await page.keyboard.press('Escape');
+await settle(250);
+check('Esc leaves link mode', (await page.$('.linking-banner')) === null);
+
+await page.keyboard.press('Enter');
+await settle(400);
+const options = await page.$$eval('.detail-panel select', (sels) => {
+  const s = sels[sels.length - 1];
+  return [...s.options].map((o) => o.textContent ?? '');
+});
+check('the blocker picker offers same-space tasks', options.includes('Draft the schema'), options.slice(0, 4).join(' | '));
+await page.selectOption('.detail-panel select >> nth=-1', { label: 'Remove the flag' });
+await settle(800);
+check('linking marks the task blocked', (await page.$('.sel-check[data-locked]')) !== null);
+await page.screenshot({ path: join(outDir, '09-chain-detail.png') });
+
+// Quick capture echoes what it parsed.
+await page.keyboard.press('Escape');
+await page.keyboard.press('Escape');
+await settle(250);
+await page.click('.task-input input');
+await page.keyboard.type('Ship it !2 #release');
+await settle(300);
+const chips = await page.$$eval('.capture-chips .chip', (e) => e.map((x) => x.textContent ?? ''));
+check('quick capture shows parsed priority and tags', chips.includes('Medium') && chips.includes('#release'), chips.join(', '));
+await page.screenshot({ path: join(outDir, '10-capture-chips.png') });
+await page.keyboard.press('Enter');
+await settle(700);
+check('quick capture still creates the task', (await titles()).includes('Ship it'));
+
+// Deleting a space asks, and names what goes with it.
+await page.goto(`${url}?seed=demo`);
+await page.waitForSelector('.space-row', { timeout: 20000 });
+await settle(900);
+await page.hover('.space-row-wrap');
+await settle(200);
+await page.click('.space-action.is-danger', { force: true });
+await settle(400);
+const delText = await page.$eval('.confirm-card', (e) => e.textContent ?? '').catch(() => '');
+check('deleting a space asks and counts its tasks', delText.includes('Product Launch') && /\d+ tasks are deleted too/.test(delText), delText.slice(0, 90));
+await page.screenshot({ path: join(outDir, '11-delete-space-confirm.png') });
+const spacesBefore = await page.$$eval('.space-row', (e) => e.length);
+await page.keyboard.press('Escape');
+await settle(300);
+check('cancelling keeps the space', (await page.$$eval('.space-row', (e) => e.length)) === spacesBefore);
+
 check('no network requests', requests.length === 0, requests.slice(0, 3).join(', '));
 check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));
 

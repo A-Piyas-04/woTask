@@ -13,7 +13,7 @@ const GESTURES: Record<CommandGroup, [keys: string, title: string][]> = {
   ],
   Tasks: [
     ['Click', 'Select a sphere'],
-    ['Click again', 'Complete / reopen'],
+    ['✓ on the label', 'Complete / reopen'],
     ['Double-click', 'Edit details'],
   ],
   Spaces: [

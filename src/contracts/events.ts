@@ -7,6 +7,8 @@ export type AppCommandId =
   | 'task.moveUp'
   | 'task.moveDown'
   | 'task.cyclePriority'
+  | 'task.link'
+  | 'task.unlink'
   | 'selection.next'
   | 'selection.prev'
   | 'selection.clear'
@@ -37,6 +39,8 @@ export const COMMANDS: readonly AppCommand[] = [
   { id: 'task.moveUp', title: 'Move task up', shortcut: 'Alt+↑', group: 'Tasks' },
   { id: 'task.moveDown', title: 'Move task down', shortcut: 'Alt+↓', group: 'Tasks' },
   { id: 'task.cyclePriority', title: 'Cycle priority', shortcut: 'P', group: 'Tasks' },
+  { id: 'task.link', title: 'Chain after…', shortcut: 'L', group: 'Tasks' },
+  { id: 'task.unlink', title: 'Unchain task', group: 'Tasks' },
   { id: 'selection.next', title: 'Select next task', shortcut: '↓', group: 'Navigation' },
   { id: 'selection.prev', title: 'Select previous task', shortcut: '↑', group: 'Navigation' },
   { id: 'selection.clear', title: 'Clear selection', shortcut: 'Esc', group: 'Navigation' },

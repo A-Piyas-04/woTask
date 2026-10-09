@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { useExitTransition, type PanelState } from './useExitTransition';
 import type { Space } from '../contracts/task';
 import { nextColorIndex, useStore } from '../state/store';
 import { SpaceForm, type SpaceDraft } from './SpaceForm';
@@ -11,10 +12,10 @@ const toDraft = (g: Space): SpaceDraft => ({
   targetDate: g.targetDate,
 });
 
-function EditSpace({ space }: { space: Space }) {
+function EditSpace({ space, state }: { space: Space; state: PanelState }) {
   const updateSpace = useStore((s) => s.updateSpace);
   const archiveSpace = useStore((s) => s.archiveSpace);
-  const deleteSpace = useStore((s) => s.deleteSpace);
+  const requestDeleteSpace = useStore((s) => s.requestDeleteSpace);
   const close = useStore((s) => s.openSpaceEditor);
   const notice = useStore((s) => (s.spaceNotice?.spaceId === space.id ? s.spaceNotice.message : null));
   const saveTimer = useRef<number | undefined>(undefined);
@@ -31,7 +32,7 @@ function EditSpace({ space }: { space: Space }) {
   };
 
   return (
-    <aside className="detail-panel" aria-label="Space settings">
+    <aside className="detail-panel" aria-label="Space settings" data-state={state}>
       <div className="detail-header">
         <span>Space</span>
         <button className="icon-btn" onClick={() => close(null)} aria-label="Close space settings" title="Close (Esc)">
@@ -60,7 +61,7 @@ function EditSpace({ space }: { space: Space }) {
         <button className="btn" onClick={() => void archiveSpace(space.id)}>
           Archive
         </button>
-        <button className="btn btn-danger" onClick={() => void deleteSpace(space.id)}>
+        <button className="btn btn-danger" onClick={() => requestDeleteSpace(space.id)}>
           Delete space
         </button>
       </div>
@@ -69,12 +70,12 @@ function EditSpace({ space }: { space: Space }) {
   );
 }
 
-function CreateSpace() {
+function CreateSpace({ state }: { state: PanelState }) {
   const createSpace = useStore((s) => s.createSpace);
   const setCreating = useStore((s) => s.setCreatingSpace);
   const spaces = useStore((s) => s.spaces);
   return (
-    <aside className="detail-panel" aria-label="New space">
+    <aside className="detail-panel" aria-label="New space" data-state={state}>
       <div className="detail-header">
         <span>New space</span>
         <button className="icon-btn" onClick={() => setCreating(false)} aria-label="Cancel" title="Cancel (Esc)">
@@ -95,8 +96,10 @@ function CreateSpace() {
 
 export function SpacePanel() {
   const creating = useStore((s) => s.creatingSpace);
-  const space = useStore((s) => (s.editingSpaceId ? s.spaces.find((g) => g.id === s.editingSpaceId) : undefined));
-  if (creating) return <CreateSpace />;
-  if (!space) return null;
-  return <EditSpace key={space.id} space={space} />;
+  const openSpace = useStore((s) => (s.editingSpaceId ? s.spaces.find((g) => g.id === s.editingSpaceId) : undefined));
+  const create = useExitTransition(creating || undefined);
+  const edit = useExitTransition(openSpace);
+  if (create.value) return <CreateSpace state={create.state} />;
+  if (!edit.value) return null;
+  return <EditSpace key={edit.value.id} space={edit.value} state={edit.state} />;
 }

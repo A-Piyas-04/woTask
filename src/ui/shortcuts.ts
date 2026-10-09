@@ -29,6 +29,12 @@ export function runCommand(id: AppCommandId): void {
     case 'task.cyclePriority':
       if (sel) void s.cyclePriority(sel);
       return;
+    case 'task.link':
+      if (sel) s.beginLinking(s.linkingFrom === sel ? null : sel);
+      return;
+    case 'task.unlink':
+      if (sel) void s.linkTask(sel, null);
+      return;
     case 'selection.next':
       s.selectRelative(1);
       return;
@@ -90,6 +96,9 @@ function handleKey(e: KeyboardEvent): void {
   if (ctrl && key === ',') return run('settings.open');
 
   if (e.key === 'Escape') {
+    if (s.confirmDeleteSpaceId) return s.requestDeleteSpace(null);
+    if (s.confirmCompleteId) return s.dismissCompleteConfirm();
+    if (s.linkingFrom) return s.beginLinking(null);
     if (s.paletteOpen) return s.setPaletteOpen(false);
     if (s.settingsOpen) return s.setSettingsOpen(false);
     if (s.shortcutsOpen) return s.setShortcutsOpen(false);
@@ -104,6 +113,8 @@ function handleKey(e: KeyboardEvent): void {
   }
 
   if (isEditable(e.target) || s.paletteOpen || s.settingsOpen) return;
+  // A confirmation owns the keyboard: its own buttons handle Enter, Escape is handled above.
+  if (s.confirmDeleteSpaceId || s.confirmCompleteId) return;
   if (e.key === '?') return run('view.shortcuts');
   if (s.shortcutsOpen) return;
   // Let focused buttons handle their own activation keys.
@@ -148,6 +159,8 @@ function handleKey(e: KeyboardEvent): void {
       return run('task.new');
     case 'p':
       return run('task.cyclePriority');
+    case 'l':
+      return run('task.link');
     case 'h':
       return run('view.toggleCompleted');
     case '/':

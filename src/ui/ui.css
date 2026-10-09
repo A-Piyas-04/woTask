@@ -54,8 +54,10 @@ textarea {
 }
 
 :focus-visible {
-  outline: 1px solid var(--text-faint);
+  /* Was a 1px --text-faint hairline: all but invisible against --panel. */
+  outline: 2px solid color-mix(in srgb, var(--space) 70%, var(--text));
   outline-offset: 2px;
+  border-radius: 4px;
 }
 
 kbd {
@@ -104,7 +106,9 @@ kbd {
   z-index: 30;
   pointer-events: none;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
 .overlay > * {
   pointer-events: auto;
@@ -504,11 +508,22 @@ kbd {
   background: var(--panel);
   border: 1px solid var(--border);
   overflow-y: auto;
-  animation: panel-in 0.2s ease-out;
+  animation: panel-in var(--panel-ms) var(--ease-out);
+}
+.detail-panel[data-state='leaving'] {
+  animation: panel-out var(--panel-out-ms) var(--ease-in) forwards;
 }
 
 @keyframes panel-in {
   from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+
+/* Leaving accelerates away; getting out of the way should not be savoured. */
+@keyframes panel-out {
+  to {
     opacity: 0;
     transform: translateX(12px);
   }
@@ -780,9 +795,17 @@ kbd {
   white-space: nowrap;
 }
 .palette-empty {
-  padding: 14px;
+  padding: 16px 14px;
   color: var(--text-faint);
   text-align: center;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.palette-empty b {
+  display: block;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-bottom: 3px;
 }
 
 .settings {
@@ -950,6 +973,430 @@ kbd {
 .boot pre {
   color: var(--alert);
   white-space: pre-wrap;
+}
+
+/* ---------- Selection bar ----------
+ *
+ * What is selected, and what you can do to it. The selection used to exist only in WebGL, so an
+ * off-screen or culled orb left Space, Delete and P acting on something invisible.
+ */
+
+.selection-bar {
+  width: min(680px, calc(100vw - 48px));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px 7px 7px;
+  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+  animation: sel-in var(--panel-ms) var(--ease-out);
+}
+
+@keyframes sel-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.sel-check {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid color-mix(in srgb, var(--space) 45%, transparent);
+  background: color-mix(in srgb, var(--space) 12%, transparent);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background var(--quick-ms) var(--ease-in-out),
+    transform var(--quick-ms) var(--ease-out);
+}
+.sel-check:hover {
+  background: color-mix(in srgb, var(--space) 26%, transparent);
+}
+.sel-check:active {
+  transform: scale(0.92);
+}
+/* A blocked task can still be completed, after a confirmation, so this is dimmed and not disabled. */
+.sel-check[data-locked] {
+  border-style: dashed;
+  color: var(--text-faint);
+}
+
+.sel-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sel-title:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.sel-title.is-done {
+  text-decoration: line-through;
+  color: var(--text-faint);
+}
+
+.sel-meta {
+  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.sel-space {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  color: var(--text-faint);
+}
+.sel-blocked,
+.sel-warn {
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11.5px;
+}
+.sel-blocked {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 3px 9px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.sel-blocked:hover {
+  color: var(--text);
+  background: var(--border);
+}
+.sel-warn {
+  font-style: italic;
+  color: var(--text-faint);
+}
+
+.sel-action {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 7px;
+  padding: 5px 10px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.sel-action:hover {
+  background: var(--border);
+  color: var(--text);
+}
+.sel-action.is-danger:hover {
+  color: var(--alert);
+}
+
+/* ---------- Priority rail ----------
+ *
+ * Three ticks, n filled. Neutral on purpose: hue identifies the space everywhere in this app, so
+ * priority cannot borrow a colour. This is what `data-priority` on every orb label was always for.
+ */
+
+.prio-rail {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  vertical-align: middle;
+}
+.prio-rail > span {
+  width: 3px;
+  height: 11px;
+  border-radius: 1px;
+  background: var(--text-ghost);
+  transition: background var(--quick-ms) var(--ease-in-out);
+}
+.prio-rail > span.is-on {
+  background: var(--text-muted);
+}
+.prio-rail[data-priority='3'] > span.is-on {
+  background: var(--text);
+}
+
+/* ---------- Due chips ----------
+ *
+ * All four tones are distinguishable. Weight and opacity carry three of them; `--alert` stays
+ * reserved for overdue, which is the only sanctioned non-space colour.
+ */
+
+.due-chip {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.due-chip.tone-today {
+  color: var(--text);
+  font-weight: 500;
+}
+.due-chip.tone-soon {
+  color: var(--text-muted);
+}
+.due-chip.tone-later {
+  color: var(--text-faint);
+}
+.due-chip.tone-overdue {
+  color: var(--alert);
+  font-weight: 500;
+}
+
+/* ---------- Quick capture ---------- */
+
+.task-capture {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: min(520px, calc(100vw - 48px));
+}
+.capture-prio {
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  background: none;
+  padding: 2px 4px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.capture-prio:hover {
+  background: var(--border);
+}
+
+.capture-foot {
+  height: 18px;
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-ghost);
+}
+.capture-hint {
+  animation: fade-in var(--panel-ms) var(--ease-out);
+}
+.capture-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: min(520px, calc(100vw - 48px));
+}
+.chip {
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10.5px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  white-space: nowrap;
+  animation: chip-in var(--quick-ms) var(--ease-out);
+}
+.chip-prio {
+  color: var(--text);
+}
+.chip-tag {
+  color: var(--text-muted);
+}
+.chip-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-faint);
+}
+
+@keyframes chip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+/* ---------- Confirmations ---------- */
+
+.confirm-card {
+  width: min(400px, calc(100vw - 48px));
+  padding: 20px;
+  border-radius: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  animation: confirm-in var(--panel-ms) var(--ease-out);
+}
+.confirm-card h2 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 500;
+}
+.confirm-card p {
+  margin: 0 0 18px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+@keyframes confirm-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+/* ---------- Chain controls in the detail panel ---------- */
+
+.detail-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 2px solid color-mix(in srgb, var(--space) 60%, transparent);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.detail-banner.is-warn {
+  font-style: italic;
+}
+.detail-banner-note {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.link-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-align: left;
+}
+.link-btn:hover {
+  color: color-mix(in srgb, var(--space) 60%, var(--text));
+}
+
+.chain-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.save-ack {
+  margin-left: auto;
+  margin-right: 8px;
+  font-size: 11px;
+  color: var(--text-faint);
+  opacity: 0;
+  transition: opacity var(--quick-ms) var(--ease-in-out);
+}
+.save-ack.is-on {
+  opacity: 1;
+}
+
+/* ---------- Press feedback and row stagger ---------- */
+
+.btn,
+.icon-btn,
+.space-action,
+.tb-btn,
+.sel-action {
+  transition:
+    background var(--quick-ms) var(--ease-in-out),
+    color var(--quick-ms) var(--ease-in-out),
+    transform var(--quick-ms) var(--ease-out);
+}
+.btn:active,
+.icon-btn:active,
+.space-action:active,
+.tb-btn:active,
+.sel-action:active {
+  transform: scale(0.96);
+}
+.space-action.is-danger:hover {
+  color: var(--alert);
+}
+
+.space-row-wrap {
+  animation: row-in var(--panel-ms) var(--ease-out) backwards;
+  animation-delay: calc(var(--row-index, 0) * var(--stagger-ms));
+}
+
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+
+/* ---------- Linking mode ---------- */
+
+.linking-banner {
+  position: absolute;
+  top: calc(var(--titlebar-h) + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 34;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid color-mix(in srgb, var(--space) 45%, var(--border));
+  font-size: 12px;
+  color: var(--text-muted);
+  animation: sel-in var(--panel-ms) var(--ease-out);
+}
+.linking-banner b {
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* ---------- Empty states ---------- */
+
+.empty-note {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-faint);
+  text-align: center;
+  padding: 12px 4px;
+}
+.empty-note b {
+  display: block;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-bottom: 3px;
 }
 
 @media (prefers-reduced-motion: reduce) {

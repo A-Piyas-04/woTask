@@ -11,7 +11,7 @@ export function Sidebar() {
   const setActiveSpace = useStore((s) => s.setActiveSpace);
   const openSpaceEditor = useStore((s) => s.openSpaceEditor);
   const setCreatingSpace = useStore((s) => s.setCreatingSpace);
-  const deleteSpace = useStore((s) => s.deleteSpace);
+  const requestDeleteSpace = useStore((s) => s.requestDeleteSpace);
   const unarchiveSpace = useStore((s) => s.unarchiveSpace);
   const notice = useStore((s) => s.spaceNotice);
   const showCompleted = useStore((s) => s.showCompleted);
@@ -42,7 +42,7 @@ export function Sidebar() {
                 {SPACE_KIND_PLURALS[g.kind]}
               </li>
             )}
-            <li className="space-row-wrap">
+            <li className="space-row-wrap" style={{ ['--row-index' as string]: String(i) }}>
               <button
                 className={`space-row${g.id === activeSpaceId ? ' is-active' : ''}`}
                 style={{ ['--space' as string]: spaceHue(g.colorIndex) }}
@@ -61,7 +61,12 @@ export function Sidebar() {
                 <button className="space-action" onClick={() => openSpaceEditor(g.id)} aria-label={`Settings for ${g.name}`} title="Space settings">
                   ⋯
                 </button>
-                <button className="space-action" onClick={() => void deleteSpace(g.id)} aria-label={`Delete space ${g.name}`} title="Delete space">
+                <button
+                  className="space-action is-danger"
+                  onClick={() => requestDeleteSpace(g.id)}
+                  aria-label={`Delete space ${g.name}`}
+                  title="Delete space"
+                >
                   ×
                 </button>
               </span>

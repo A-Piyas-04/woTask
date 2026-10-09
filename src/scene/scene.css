@@ -192,3 +192,38 @@
   text-transform: uppercase;
   color: var(--text-ghost);
 }
+
+/*
+ * The complete control, inside the orb label.
+ *
+ * The label layer is transparent to the pointer; this is the one thing in it that is not. Text and
+ * text entry stay in the DOM, so completing a task never becomes a WebGL hit test against a sphere.
+ */
+.orb-check {
+  display: block;
+  margin: 0 auto 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--orb-space, var(--text-muted)) 50%, transparent);
+  background: rgba(16, 19, 26, 0.82);
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    background var(--quick-ms) var(--ease-in-out),
+    transform var(--quick-ms) var(--ease-out);
+}
+.orb-check:hover {
+  background: rgba(36, 42, 54, 0.95);
+}
+.orb-check:active {
+  transform: scale(0.9);
+}
+/* Blocked: still clickable, but it asks first. */
+.orb-check[data-locked] {
+  border-style: dashed;
+  color: var(--text-faint);
+}

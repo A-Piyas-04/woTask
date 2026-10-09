@@ -139,7 +139,12 @@ export function CommandPalette() {
           lang="bn-BD en"
         />
         <ul className="palette-options" id="palette-options" role="listbox">
-          {items.length === 0 && <li className="palette-empty">No matches</li>}
+          {items.length === 0 && (
+            <li className="palette-empty">
+              <b>Nothing matches that</b>
+              Search looks at task titles, space names and command names.
+            </li>
+          )}
           {items.map((item, i) => (
             <li
               key={item.key}

@@ -8,7 +8,7 @@ import { FRAME, pointerState, sceneSeconds, type PositionRegistry } from '../int
 import { useLabelEntry, type LabelRegistry } from '../labels';
 import type { OrbPlacement } from '../layout';
 import { createGlassMaterial, createGlowMaterial, sharedGeometry, type SpaceRamp } from '../materials/materials';
-import { formatDue } from './labelFormat';
+import { formatDue } from '../../shared/taskFormat';
 
 export interface TaskOrbProps {
   orb: OrbPlacement;
@@ -404,11 +404,17 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
     pressed.current = false;
     invalidate();
   };
+  /**
+   * Clicking an orb only ever selects it.
+   *
+   * It used to complete the task when it was already selected: no hit-target difference, no hover
+   * cue, and a plain click quietly changing state. Completing now needs a real control - the check
+   * in this orb's label, the selection bar, the detail panel, or Space.
+   */
   const onClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
     if (pointerState.dragged) return;
-    if (live.current.selected) live.current.onToggle(task.id);
-    else live.current.onSelect(task.id);
+    live.current.onSelect(task.id);
   };
   const onDoubleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
@@ -476,8 +482,23 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
               locked && !done ? ' is-locked' : ''
             }${outOfOrder ? ' is-out-of-order' : ''}`}
             data-priority={task.priority}
-            style={{ opacity: 0 }}
+            style={{ opacity: 0, ['--orb-space' as string]: ramp.base }}
           >
+            {(selected || hoverLabel) && (
+              <button
+                className="orb-check"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  live.current.onToggle(task.id);
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+                title={done ? 'Reopen' : locked ? 'Blocked — completing needs a confirmation' : 'Complete'}
+                aria-label={done ? `Reopen ${task.title}` : `Complete ${task.title}`}
+                data-locked={locked && !done ? '' : undefined}
+              >
+                {done ? '↺' : '✓'}
+              </button>
+            )}
             <div className="orb-title" lang="bn-BD en">
               {task.title}
             </div>

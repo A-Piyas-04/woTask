@@ -4,6 +4,8 @@ import type { Task } from '../contracts/task';
 import { Scene } from '../scene/Scene';
 import type { SpaceStats } from '../scene/objects/Constellation';
 import { chainIndex, orderTasks, useStore, visibleSpaces } from '../state/store';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { SelectionBar } from '../ui/SelectionBar';
 import { CommandPalette } from '../ui/CommandPalette';
 import { DetailPanel } from '../ui/DetailPanel';
 import { Onboarding } from '../ui/Onboarding';
@@ -90,7 +92,7 @@ function HintLine() {
             <kbd>Drag</kbd> explore
           </span>
           <span>
-            <kbd>Click</kbd> twice to complete
+            <kbd>L</kbd> chain after
           </span>
         </span>
       )}
@@ -99,6 +101,89 @@ function HintLine() {
       </button>
     </div>
   );
+}
+
+/**
+ * The two confirmations the app raises, in one place.
+ *
+ * Both guard something a plain undo cannot comfortably cover: deleting a space takes every task in
+ * it, and completing a blocked task contradicts a sequence the user set up on purpose. Deleting a
+ * single task is deliberately absent - it is cheap, reversible, and already has an undo toast.
+ */
+/** Link mode changes what a click means, so it has to say so. */
+function LinkingBanner() {
+  const task = useStore((s) => (s.linkingFrom ? s.tasks.find((t) => t.id === s.linkingFrom) : undefined));
+  const beginLinking = useStore((s) => s.beginLinking);
+  if (!task) return null;
+  return (
+    <div className="linking-banner" role="status">
+      <span lang="bn-BD en">
+        Click the task that <b>{task.title}</b> comes after
+      </span>
+      <button className="sel-action" onClick={() => beginLinking(null)}>
+        Cancel
+      </button>
+    </div>
+  );
+}
+
+function Dialogs() {
+  const { blocked, blocker, space, spaceTaskCount } = useStore(
+    useShallow((s) => {
+      const blocked = s.confirmCompleteId ? s.tasks.find((t) => t.id === s.confirmCompleteId) : undefined;
+      const space = s.confirmDeleteSpaceId ? s.spaces.find((g) => g.id === s.confirmDeleteSpaceId) : undefined;
+      return {
+        blocked,
+        blocker: blocked?.blockedBy ? s.tasks.find((t) => t.id === blocked.blockedBy) : undefined,
+        space,
+        spaceTaskCount: space ? s.tasks.filter((t) => t.spaceId === space.id).length : 0,
+      };
+    }),
+  );
+  const completeAnyway = useStore((s) => s.completeAnyway);
+  const dismissCompleteConfirm = useStore((s) => s.dismissCompleteConfirm);
+  const requestDeleteSpace = useStore((s) => s.requestDeleteSpace);
+  const deleteSpace = useStore((s) => s.deleteSpace);
+
+  if (space) {
+    const tasks = spaceTaskCount === 1 ? '1 task' : `${spaceTaskCount} tasks`;
+    return (
+      <ConfirmDialog
+        title={`Delete “${space.name}”?`}
+        body={
+          spaceTaskCount === 0
+            ? 'This space is empty. Ctrl+Z undoes this.'
+            : `Its ${tasks} are deleted too. Ctrl+Z undoes this.`
+        }
+        confirmLabel="Delete space"
+        danger
+        onConfirm={() => {
+          const id = space.id;
+          requestDeleteSpace(null);
+          void deleteSpace(id);
+        }}
+        onCancel={() => requestDeleteSpace(null)}
+      />
+    );
+  }
+
+  if (blocked) {
+    return (
+      <ConfirmDialog
+        title="Complete out of order?"
+        body={
+          blocker
+            ? `“${blocked.title}” comes after “${blocker.title}”, which is not done yet.`
+            : `“${blocked.title}” is still blocked.`
+        }
+        confirmLabel="Complete anyway"
+        onConfirm={() => void completeAnyway(blocked.id)}
+        onCancel={dismissCompleteConfirm}
+      />
+    );
+  }
+
+  return null;
 }
 
 function Main() {
@@ -142,6 +227,12 @@ function Main() {
 
   const onSelect = useCallback((id: string | null) => {
     const s = useStore.getState();
+    // While picking a blocker, a click answers the question rather than changing the selection.
+    if (s.linkingFrom !== null) {
+      if (id === null) s.beginLinking(null);
+      else void s.linkTask(s.linkingFrom, id);
+      return;
+    }
     const task = id ? s.tasks.find((t) => t.id === id) : undefined;
     if (task && task.spaceId !== s.activeSpaceId) s.setActiveSpace(task.spaceId);
     s.select(id);
@@ -175,11 +266,14 @@ function Main() {
         onToggle={onToggle}
       />
       <div className="overlay">
+        <SelectionBar />
         <TaskInput />
       </div>
       <HintLine />
+      <LinkingBanner />
       <DetailPanel />
       <SpacePanel />
+      <Dialogs />
     </main>
   );
 }

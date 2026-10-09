@@ -17,11 +17,21 @@ Ships as ONE portable .exe. No network access at runtime, ever.
 6. All text and text entry live in the DOM, never in WebGL. Card labels use drei `<Html>` with
    the `portal` layer from `Scene.tsx`.
 7. TypeScript strict mode. No `any`. No `@ts-ignore`.
+8. The domain says **space** (`Space`, `spaceId`, `SpaceKind`). The wire format - SQLite tables and
+   columns, Tauri command names, the localStorage blob - still says `region`, and
+   `src/data/repository.ts` is the only place that mapping lives. Do not let `region` leak above it,
+   and do not rename the database to match: that would rewrite tables holding real data for nothing.
+9. A chain is `Task.blockedBy`: one predecessor in, many successors out. Being *locked* is derived,
+   never stored, so reopening a blocker re-locks its successors for free. The lock is soft - the user
+   can complete a blocked task after a confirmation. Every traversal of the chain must be cycle-safe
+   (a visited set or a hop cap); bad data must degrade, not hang the render loop.
 
 ## Verification
 - `npm run build` (runs `tsc --noEmit` + Vite build)
 - `npm run audit:offline`
-- `npm run test:ui` with `npm run dev` running (drives system Edge via playwright-core)
+- `npm run test:chain` (pure selectors, loaded through Vite SSR; no dev server needed)
+- `npm run test:ui` and `npm run test:visual` with `npm run dev` running (system Edge via playwright-core)
+- `npm run test:palette`
 - `cargo test` and `cargo check` in `src-tauri/`
 
 ## Out of scope

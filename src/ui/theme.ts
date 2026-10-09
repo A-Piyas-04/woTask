@@ -41,6 +41,13 @@ export function applyTheme(root: HTMLElement): void {
     '--side-head-tracking': TYPE.sidebarHeader.tracking,
     '--side-head-color': TYPE.sidebarHeader.color,
     '--label-fade': `${MOTION.labelFadeMs}ms`,
+    '--panel-ms': `${MOTION.ui.panelMs}ms`,
+    '--panel-out-ms': `${MOTION.ui.panelOutMs}ms`,
+    '--quick-ms': `${MOTION.ui.quickMs}ms`,
+    '--stagger-ms': `${MOTION.ui.staggerMs}ms`,
+    '--ease-out': MOTION.ui.out,
+    '--ease-in': MOTION.ui.in,
+    '--ease-in-out': MOTION.ui.inOut,
     '--input-bar-h': `${CHROME.inputBarPx}px`,
   };
   for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);

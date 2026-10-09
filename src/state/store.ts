@@ -57,6 +57,8 @@ export interface AppState {
   confirmCompleteId: string | null;
   /** Chain-link picker: the task waiting to be told what it comes after. */
   linkingFrom: string | null;
+  /** Space awaiting delete confirmation. Deleting a space takes its tasks with it. */
+  confirmDeleteSpaceId: string | null;
   paletteOpen: boolean;
   settingsOpen: boolean;
   shortcutsOpen: boolean;
@@ -97,6 +99,8 @@ export interface AppState {
   cycleSpace(delta: -1 | 1): void;
   beginLinking(id: string | null): void;
   dismissCompleteConfirm(): void;
+  /** Opens the delete confirmation, or explains inline when this is the last space. */
+  requestDeleteSpace(id: string | null): void;
   openEditor(id: string | null): void;
   openSpaceEditor(id: string | null): void;
   setCreatingSpace(open: boolean): void;
@@ -483,6 +487,7 @@ export const useStore = create<AppState>()((set, get) => {
     spaceNotice: null,
     confirmCompleteId: null,
     linkingFrom: null,
+    confirmDeleteSpaceId: null,
     paletteOpen: false,
     settingsOpen: false,
     shortcutsOpen: false,
@@ -861,6 +866,11 @@ export const useStore = create<AppState>()((set, get) => {
 
     beginLinking(id) {
       set({ linkingFrom: id, confirmCompleteId: null });
+    },
+    requestDeleteSpace(id) {
+      // The last-space guard explains itself inline; no point raising a dialog only to refuse.
+      if (id !== null && !guardLast(id, 'delete')) return;
+      set({ confirmDeleteSpaceId: id });
     },
     dismissCompleteConfirm() {
       set({ confirmCompleteId: null });

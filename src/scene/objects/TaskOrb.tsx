@@ -3,7 +3,7 @@ import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { easing } from 'maath';
 import { memo, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import * as THREE from 'three';
-import { CAMERA, CONSTELLATION, MATERIALS, MOTION, PALETTE } from '../../contracts/tokens';
+import { CONSTELLATION, MATERIALS, MOTION, PALETTE } from '../../contracts/tokens';
 import { FRAME, pointerState, type PositionRegistry } from '../interaction';
 import { useLabelEntry, type LabelRegistry } from '../labels';
 import type { OrbPlacement } from '../layout';
@@ -352,7 +352,6 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
         center
         portal={props.labelLayer as RefObject<HTMLElement>}
         position={[0, -labelRadius * CONSTELLATION.selectedScale - CONSTELLATION.labelOffset, 0]}
-        distanceFactor={CAMERA.labelDistanceFactor}
         pointerEvents="none"
         zIndexRange={[20, 0]}
       >

@@ -1,9 +1,9 @@
 import { createRoot } from 'react-dom/client';
 import { App } from './app/App';
-import { FONT_STACK } from './contracts/tokens';
+import { applyTheme } from './ui/theme';
 import './ui/ui.css';
 
-document.documentElement.style.setProperty('--font-stack', FONT_STACK);
+applyTheme(document.documentElement);
 
 const root = document.getElementById('root');
 if (!root) throw new Error('#root element missing');

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MATERIALS, PALETTE, RAMP, regionHue } from '../../contracts/tokens';
+import { MATERIALS, RAMP, regionHue } from '../../contracts/tokens';
 
 const G = MATERIALS.glass;
 
@@ -42,8 +42,8 @@ export function regionRamp(colorIndex: number): RegionRamp {
       dim: mixHex(base, RAMP.dim.target, RAMP.dim.amount),
       text: mixHex(base, RAMP.text.target, RAMP.text.amount),
       completed,
-      glass: mixHex(base, PALETTE.white, 0.6),
-      completedGlass: mixHex(completed, PALETTE.white, 0.5),
+      glass: mixHex(base, RAMP.glass.target, RAMP.glass.amount),
+      completedGlass: mixHex(completed, RAMP.completedGlass.target, RAMP.completedGlass.amount),
     };
     rampCache.set(colorIndex, r);
   }

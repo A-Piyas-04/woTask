@@ -1,0 +1,46 @@
+import { PALETTE, TYPE, UI, MOTION, CHROME } from '../contracts/tokens';
+
+/** Publishes design tokens as CSS custom properties so stylesheets never hardcode a colour or timing. */
+export function applyTheme(root: HTMLElement): void {
+  const vars: Record<string, string> = {
+    '--font-stack': TYPE.family,
+    '--bg': PALETTE.base,
+    '--bg-top': PALETTE.background.gradientTop,
+    '--panel': UI.panel,
+    '--surface': UI.surface,
+    '--border': UI.border,
+    '--hover': UI.hover,
+    '--active-row': UI.activeRow,
+    '--text': UI.text,
+    '--text-strong': UI.textStrong,
+    '--text-muted': UI.textMuted,
+    '--text-faint': UI.textFaint,
+    '--text-ghost': UI.textGhost,
+    '--alert': PALETTE.alert,
+    '--label-shadow': UI.labelShadow,
+    '--label-max-w': `${TYPE.labelMaxWidth}px`,
+    '--task-title-size': `${TYPE.taskTitle.size}px`,
+    '--task-title-weight': String(TYPE.taskTitle.weight),
+    '--task-title-tracking': TYPE.taskTitle.tracking,
+    '--task-title-color': TYPE.taskTitle.color,
+    '--task-meta-size': `${TYPE.taskMeta.size}px`,
+    '--task-meta-color': TYPE.taskMeta.color,
+    '--zone-title-size': `${TYPE.zoneTitle.size}px`,
+    '--zone-title-weight': String(TYPE.zoneTitle.weight),
+    '--zone-title-tracking': TYPE.zoneTitle.tracking,
+    '--zone-sub-size': `${TYPE.zoneSubtitle.size}px`,
+    '--zone-sub-tracking': TYPE.zoneSubtitle.tracking,
+    '--zone-sub-color': TYPE.zoneSubtitle.color,
+    '--side-name-size': `${TYPE.sidebarName.size}px`,
+    '--side-name-weight': String(TYPE.sidebarName.weight),
+    '--side-name-color': TYPE.sidebarName.color,
+    '--side-count-size': `${TYPE.sidebarCount.size}px`,
+    '--side-count-color': TYPE.sidebarCount.color,
+    '--side-head-size': `${TYPE.sidebarHeader.size}px`,
+    '--side-head-tracking': TYPE.sidebarHeader.tracking,
+    '--side-head-color': TYPE.sidebarHeader.color,
+    '--label-fade': `${MOTION.labelFadeMs}ms`,
+    '--input-bar-h': `${CHROME.inputBarPx}px`,
+  };
+  for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
+}

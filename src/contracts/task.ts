@@ -36,6 +36,12 @@ export const REGION_KIND_LABELS: Record<RegionKind, string> = {
   goal: 'Goal',
 };
 
+export const REGION_KIND_PLURALS: Record<RegionKind, string> = {
+  category: 'Categories',
+  project: 'Projects',
+  goal: 'Goals',
+};
+
 /**
  * A region is a user-defined category, project or goal; each one is a zone of space.
  * Optional fields are nullable (not undefined) because the Rust side serialises `None` as `null`.

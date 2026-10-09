@@ -1,4 +1,4 @@
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, type RefObject } from 'react';
 import * as THREE from 'three';
 import { CAMERA } from '../contracts/tokens';
@@ -39,14 +39,18 @@ export function useLabelEntry(
   init: Omit<LabelEntry, 'el' | 'width' | 'height' | 'opacity' | 'collided'>,
 ): RefObject<LabelEntry | null> {
   const entry = useRef<LabelEntry | null>(null);
+  const invalidate = useThree((s) => s.invalidate);
   useEffect(() => {
     if (!el) return;
     const e: LabelEntry = { ...init, el, width: el.offsetWidth, height: el.offsetHeight, opacity: -1, collided: false };
     entry.current = e;
     registry.set(id, e);
+    // On-demand canvas: the culler only runs on a rendered frame, so ask for one.
+    invalidate();
     const ro = new ResizeObserver(() => {
       e.width = el.offsetWidth;
       e.height = el.offsetHeight;
+      invalidate();
     });
     ro.observe(el);
     return () => {
@@ -55,7 +59,7 @@ export function useLabelEntry(
       entry.current = null;
     };
     // `init` only seeds the entry; the orb updates the live fields every frame.
-  }, [registry, id, el]);
+  }, [registry, id, el, invalidate]);
   return entry;
 }
 
@@ -82,6 +86,8 @@ const PAD = 3;
 export function LabelCuller({ registry, activeRegionId }: { registry: LabelRegistry; activeRegionId: string | null }) {
   const live = useRef(activeRegionId);
   live.current = activeRegionId;
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(() => invalidate(), [activeRegionId, invalidate]);
   const tmp = useMemo(() => ({ v: new THREE.Vector3(), lastCam: new THREE.Vector3(Infinity, 0, 0) }), []);
   const candidates = useRef<{ e: LabelEntry; fade: number; box: Box }[]>([]);
 
@@ -91,7 +97,6 @@ export function LabelCuller({ registry, activeRegionId }: { registry: LabelRegis
     const speed = delta > 0 && Number.isFinite(tmp.lastCam.x) ? cam.position.distanceTo(tmp.lastCam) / delta : 0;
     tmp.lastCam.copy(cam.position);
     const runCollision = speed < CAMERA.labelCollisionMaxSpeed;
-    const vFov = (cam.fov * Math.PI) / 180;
 
     const list = candidates.current;
     list.length = 0;
@@ -110,12 +115,11 @@ export function LabelCuller({ registry, activeRegionId }: { registry: LabelRegis
         write(e, 0);
         continue;
       }
-      // Same scale drei's <Html distanceFactor> applies.
-      const scale = CAMERA.labelDistanceFactor / (2 * Math.tan(vFov / 2) * dist);
+      // Labels render at a constant CSS size, centred on the projected anchor.
       const cx = (tmp.v.x * 0.5 + 0.5) * width;
       const cy = (-tmp.v.y * 0.5 + 0.5) * height;
-      const hw = (e.width * scale) / 2 + PAD;
-      const hh = (e.height * scale) / 2 + PAD;
+      const hw = e.width / 2 + PAD;
+      const hh = e.height / 2 + PAD;
       list.push({ e, fade, box: { x0: cx - hw, y0: cy - hh, x1: cx + hw, y1: cy + hh } });
     }
 

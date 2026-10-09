@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { REGION_KIND_LABELS } from '../contracts/task';
+import { REGION_KIND_PLURALS } from '../contracts/task';
 import { regionHue } from '../contracts/tokens';
 import { useStore, visibleRegions } from '../state/store';
 import { NEW_REGION_EVENT } from './shortcuts';
@@ -39,7 +39,7 @@ export function Sidebar() {
           <Fragment key={g.id}>
             {grouped && (i === 0 || shown[i - 1].kind !== g.kind) && (
               <li className="region-group" aria-hidden="true">
-                {REGION_KIND_LABELS[g.kind]}s
+                {REGION_KIND_PLURALS[g.kind]}
               </li>
             )}
             <li className="region-row-wrap">

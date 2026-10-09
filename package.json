@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "audit:offline": "node scripts/offline-audit.mjs",
-    "test:ui": "node scripts/ui-test.mjs"
+    "test:ui": "node scripts/ui-test.mjs",
+    "test:palette": "node scripts/palette-test.mjs",
+    "test:visual": "node scripts/visual-test.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",

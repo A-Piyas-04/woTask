@@ -9,7 +9,10 @@ export function TitleBar() {
   return (
     <header className="titlebar" data-tauri-drag-region>
       <div className="titlebar-brand" data-tauri-drag-region>
-        <span className="brand-mark" aria-hidden="true" />
+        <svg className="brand-mark" viewBox="0 0 14 14" aria-hidden="true">
+          <circle cx="7" cy="7" r="3" fill="currentColor" />
+          <circle cx="7" cy="7" r="6.25" fill="none" stroke="currentColor" strokeWidth="1" />
+        </svg>
         <span data-tauri-drag-region>woTask</span>
         {regionName && (
           <span className="titlebar-region" data-tauri-drag-region>

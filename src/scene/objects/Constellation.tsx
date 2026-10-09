@@ -2,7 +2,7 @@ import { Html } from '@react-three/drei';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, type RefObject } from 'react';
 import * as THREE from 'three';
-import { CAMERA, CONSTELLATION, MATERIALS } from '../../contracts/tokens';
+import { CONSTELLATION, MATERIALS } from '../../contracts/tokens';
 import { FRAME, pointerState, type PositionRegistry } from '../interaction';
 import type { Zone } from '../layout';
 import { createGlowMaterial, getDiscTexture, sharedGeometry, type RegionRamp } from '../materials/materials';
@@ -172,7 +172,6 @@ export function Constellation({ zone, ramp, stats, active, ambient, registry, la
           center
           portal={labelLayer as RefObject<HTMLElement>}
           position={[0, ry + CONSTELLATION.zoneLabelOffset, 0]}
-          distanceFactor={CAMERA.labelDistanceFactor}
           pointerEvents="none"
           zIndexRange={[10, 0]}
         >

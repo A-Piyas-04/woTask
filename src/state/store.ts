@@ -61,6 +61,8 @@ export interface AppState {
   firstRun: boolean;
   /** Incremented to ask the task input to take focus. */
   inputFocusToken: number;
+  /** Bumped whenever a region is chosen, so the camera flies to it even if it was already active. */
+  regionFocusToken: number;
   toasts: Toast[];
   undoStack: UndoEntry[];
 
@@ -270,6 +272,7 @@ export const useStore = create<AppState>()((set, get) => {
     ambientMotion: readPref(AMBIENT_KEY, ['true', 'false'], 'true') === 'true',
     firstRun: readPref(FIRST_RUN_KEY, ['true', 'false'], 'false') !== 'true',
     inputFocusToken: 0,
+    regionFocusToken: 0,
     toasts: [],
     undoStack: [],
 
@@ -508,8 +511,12 @@ export const useStore = create<AppState>()((set, get) => {
     },
 
     setActiveRegion(id) {
-      if (id === get().activeRegionId) return;
-      set({ activeRegionId: id, selectedId: null, editingId: null });
+      // Choosing the region that is already active re-centres the camera on it.
+      if (id === get().activeRegionId) {
+        set((s) => ({ selectedId: null, regionFocusToken: s.regionFocusToken + 1 }));
+        return;
+      }
+      set((s) => ({ activeRegionId: id, selectedId: null, editingId: null, regionFocusToken: s.regionFocusToken + 1 }));
     },
 
     cycleRegion(delta) {

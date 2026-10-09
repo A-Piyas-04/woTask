@@ -102,12 +102,13 @@ function HintLine() {
 }
 
 function Main() {
-  const { regions, tasks, showCompleted, activeRegionId, selectedId, quality, ambientMotion } = useStore(
+  const { regions, tasks, showCompleted, activeRegionId, regionFocusToken, selectedId, quality, ambientMotion } = useStore(
     useShallow((s) => ({
       regions: s.regions,
       tasks: s.tasks,
       showCompleted: s.showCompleted,
       activeRegionId: s.activeRegionId,
+      regionFocusToken: s.regionFocusToken,
       selectedId: s.selectedId,
       quality: s.quality,
       ambientMotion: s.ambientMotion,
@@ -155,6 +156,7 @@ function Main() {
         regionStats={regionStats}
         hideLabels={HIDE_LABELS}
         activeRegionId={activeRegionId}
+        regionFocusToken={regionFocusToken}
         selectedId={selectedId}
         quality={quality}
         ambient={ambientMotion}

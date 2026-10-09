@@ -25,7 +25,7 @@ function framedY(focus: CameraFocus, distance: number, heightPx: number): number
   const fov = (CAMERA.fov * Math.PI) / 180;
   const pxPerWorld = heightPx / (2 * Math.tan(fov / 2) * distance);
   const sway = CAMERA.pointerParallax[1];
-  const minY = focus.frame.top - (heightPx / 2 - CHROME.titleClearancePx - CHROME.zoneTitlePx) / pxPerWorld + sway;
+  const minY = focus.frame.top - (heightPx / 2 - CHROME.titleClearancePx - CHROME.zoneTitlePx / 2) / pxPerWorld + sway;
   const maxY = focus.frame.bottom + (heightPx / 2 - CHROME.inputBarPx - CHROME.titleClearancePx) / pxPerWorld - sway;
   return Math.max(minY, Math.min(focus.y, maxY));
 }

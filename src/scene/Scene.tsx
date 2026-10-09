@@ -23,6 +23,8 @@ export interface SceneProps {
   /** Open/done counts per region over all tasks, independent of the show-completed filter. */
   regionStats: Record<string, RegionStats>;
   activeRegionId: string | null;
+  /** Changes whenever a region is chosen; re-centres the camera even on the already-active region. */
+  regionFocusToken: number;
   selectedId: string | null;
   quality: QualityTier;
   ambient: boolean;
@@ -58,7 +60,7 @@ function usePageActive(): boolean {
  * focused and visible; otherwise it renders on demand, so a background window costs ~0% GPU.
  */
 export function Scene(props: SceneProps) {
-  const { regions, tasksByRegion, regionStats, activeRegionId, selectedId, quality, ambient, reducedMotion } = props;
+  const { regions, tasksByRegion, regionStats, activeRegionId, regionFocusToken, selectedId, quality, ambient, reducedMotion } = props;
   const q = QUALITY[quality];
   const labelLayer = useRef<HTMLDivElement>(null);
   const registry = useMemo<PositionRegistry>(() => new Map(), []);
@@ -77,12 +79,12 @@ export function Scene(props: SceneProps) {
     if (!zone) return null;
     const ry = zone.radius / CONSTELLATION.ellipseX;
     return {
-      key: `region:${zone.region.id}`,
+      key: `region:${zone.region.id}:${regionFocusToken}`,
       x: zone.center[0],
       y: zone.center[1],
       frame: { top: zone.center[1] + ry + CONSTELLATION.zoneLabelOffset, bottom: zone.center[1] - ry },
     };
-  }, [layout, selectedId, activeRegionId]);
+  }, [layout, selectedId, activeRegionId, regionFocusToken]);
 
   const bgCenter = useMemo<[number, number]>(
     () => [(layout.bounds.minX + layout.bounds.maxX) / 2, (layout.bounds.minY + layout.bounds.maxY) / 2],

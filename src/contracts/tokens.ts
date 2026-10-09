@@ -41,6 +41,9 @@ export const RAMP = {
   dim: { target: PALETTE.rampDark, amount: 0.55 },
   text: { target: PALETTE.white, amount: 0.55 },
   completed: { target: PALETTE.completedNeutral, amount: 0.75 },
+  /** Glass body (diffuse share of the transmission); too light and every sphere reads white. */
+  glass: { target: PALETTE.white, amount: 0.3 },
+  completedGlass: { target: PALETTE.white, amount: 0.3 },
 } as const;
 
 /** Chrome colours (DOM). Neutral by design; region hue enters only via CSS variables. */
@@ -116,7 +119,7 @@ export const MATERIALS = {
     iridescence: 0.25,
     iridescenceIOR: 1.3,
     iridescenceThicknessRange: [120, 400] as [number, number],
-    attenuationDistance: 2.2,
+    attenuationDistance: 1.4,
     envMapIntensity: 1.0,
   },
   priority: {
@@ -185,8 +188,8 @@ export const CHROME = {
   inputBarPx: 92,
   /** Breathing room between a zone title and the top edge of the canvas. */
   titleClearancePx: 24,
-  /** Approximate rendered height of the zone title block. */
-  zoneTitlePx: 40,
+  /** Rendered height of the zone title block (name + subtitle); labels are centred on their anchor. */
+  zoneTitlePx: 36,
 } as const;
 
 export const CAMERA = {
@@ -201,8 +204,6 @@ export const CAMERA = {
   pointerParallax: [1.1, 0.7] as [number, number],
   dragThresholdPx: 5,
   boundsMargin: 8,
-  /** Html labels: CSS scale 1 at the default distance. */
-  labelDistanceFactor: 14,
   /** Active-region labels are shown when the camera is closer than this. */
   labelDistance: 24,
   /** All labels fade out with camera distance between these two (smoothstep). */

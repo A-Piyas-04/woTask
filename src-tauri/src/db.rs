@@ -44,7 +44,9 @@ pub struct Task {
 // which is the only place that knows how long the palette is. Never clamp here: a clamp against a
 // stale count silently rewrites the user's colour choice on every save.
 
-/// The version a fully migrated database reports in `PRAGMA user_version`.
+/// The version a fully migrated database reports in `PRAGMA user_version`. Only the migration tests
+/// assert against it; `migrate` derives the same number from the array index.
+#[cfg(test)]
 const SCHEMA_VERSION: i64 = MIGRATIONS.len() as i64;
 
 const MIGRATIONS: &[&str] = &[

@@ -95,11 +95,12 @@ export function buildWelcomeData(now: number): { lists: List[]; tasks: Task[] } 
     { id: 'personal', name: 'Personal', color: '#4fd1a5', position: 1, createdAt: now },
   ];
   const titles: [string, Priority][] = [
-    ['Welcome to woTask — click a card to select it', 2],
-    ['Press N to add a task, Space to complete it', 1],
-    ['Ctrl+K opens the command palette', 1],
+    ['Welcome to woTask — click a sphere to select it', 2],
+    ['Click it again (or press Space) to complete it', 1],
+    ['Drag anywhere to explore, scroll to zoom', 1],
+    ['Press N to add a task, Ctrl+K for commands', 1],
     ['বাংলাতেও লিখতে পারবেন — Bangla works too', 0],
-    ['Press Enter to edit details, Del to delete, Ctrl+Z to undo', 0],
+    ['Double-click or Enter to edit, Del to delete, Ctrl+Z undo', 0],
   ];
   const tasks: Task[] = titles.map(([title, priority], i) => ({
     id: `welcome-${i}`,

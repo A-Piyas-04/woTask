@@ -3,6 +3,8 @@
   inset: 0;
   z-index: 0;
   isolation: isolate;
+  cursor: grab;
+  touch-action: none;
 }
 
 .label-layer {
@@ -12,84 +14,98 @@
   overflow: hidden;
 }
 
-.card-label-host {
-  pointer-events: none;
-  user-select: none;
-}
-
-.card-label {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 0 22px 0 36px;
-  color: #f2f5ff;
-  backface-visibility: hidden;
+.orb-label {
+  width: 190px;
+  text-align: center;
+  color: #eef2ff;
   font-family: var(--font-stack);
+  user-select: none;
+  transition: opacity 0.25s, transform 0.25s;
+  opacity: 0.86;
 }
 
-.card-check {
-  flex: none;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  border: 2px solid rgba(235, 240, 255, 0.55);
-  display: grid;
-  place-items: center;
-  font-size: 15px;
-  font-weight: 700;
-  color: #06120d;
-  transition: background 0.2s, border-color 0.2s;
+.orb-label.is-selected {
+  opacity: 1;
+  transform: scale(1.08);
 }
 
-.card-label.is-done .card-check {
-  background: #4fd1a5;
-  border-color: #4fd1a5;
-}
-
-.card-text {
-  min-width: 0;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.card-title {
-  font-size: 19px;
+.orb-title {
+  font-size: 14.5px;
   font-weight: 600;
   line-height: 1.3;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.55);
+  text-shadow:
+    0 0 10px rgba(0, 0, 0, 0.9),
+    0 1px 3px rgba(0, 0, 0, 0.9);
 }
 
-.card-label.is-done .card-title {
+.orb-label.is-selected .orb-title {
+  text-shadow:
+    0 0 12px rgba(0, 0, 0, 0.9),
+    0 0 18px rgba(124, 156, 255, 0.55);
+}
+
+.orb-label.is-done .orb-title {
   text-decoration: line-through;
-  text-decoration-thickness: 2px;
-  color: rgba(235, 240, 255, 0.45);
+  text-decoration-thickness: 1.5px;
+  color: rgba(214, 222, 255, 0.5);
 }
 
-.card-meta {
+.orb-meta {
+  margin-top: 3px;
   display: flex;
-  gap: 10px;
-  font-size: 13px;
+  justify-content: center;
+  gap: 8px;
+  font-size: 11.5px;
   font-weight: 500;
-  color: rgba(214, 222, 255, 0.72);
+  color: rgba(200, 210, 255, 0.75);
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.9);
   white-space: nowrap;
-  overflow: hidden;
-  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
 }
 
-.card-due.tone-overdue {
+.orb-due.tone-overdue {
   color: #ff8a9a;
   font-weight: 700;
 }
-.card-due.tone-today {
+.orb-due.tone-today {
   color: #ffc46b;
   font-weight: 700;
 }
-.card-tag {
+.orb-tag {
   color: #aebcff;
+}
+
+.zone-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-stack);
+  user-select: none;
+  white-space: nowrap;
+  opacity: 0.55;
+  transition: opacity 0.4s;
+}
+.zone-label.is-active {
+  opacity: 1;
+}
+.zone-name {
+  font-size: 30px;
+  font-weight: 300;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  color: #f5f7ff;
+  text-shadow:
+    0 0 24px var(--zone-color),
+    0 0 4px rgba(0, 0, 0, 0.8);
+}
+.zone-count {
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--zone-color);
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.9);
 }

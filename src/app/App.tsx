@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { PALETTE } from '../contracts/tokens';
+import type { Task } from '../contracts/task';
 import { Scene } from '../scene/Scene';
 import { orderTasks, useStore } from '../state/store';
 import { CommandPalette } from '../ui/CommandPalette';
@@ -52,22 +52,47 @@ export function App() {
 }
 
 function Main() {
-  const tasks = useStore(useShallow((s) => orderTasks(s.tasks, s.activeListId, s.showCompleted)));
-  const selectedId = useStore((s) => s.selectedId);
-  const quality = useStore((s) => s.quality);
-  const accent = useStore((s) => s.lists.find((l) => l.id === s.activeListId)?.color ?? PALETTE.accent);
-  const totalInList = useStore((s) => s.tasks.filter((t) => t.listId === s.activeListId).length);
+  const { lists, tasks, showCompleted, activeListId, selectedId, quality, ambientMotion } = useStore(
+    useShallow((s) => ({
+      lists: s.lists,
+      tasks: s.tasks,
+      showCompleted: s.showCompleted,
+      activeListId: s.activeListId,
+      selectedId: s.selectedId,
+      quality: s.quality,
+      ambientMotion: s.ambientMotion,
+    })),
+  );
   const reducedMotion = useReducedMotion();
 
-  const onSelect = useCallback((id: string | null) => useStore.getState().select(id), []);
-  const onOpen = useCallback((id: string) => useStore.getState().openEditor(id), []);
+  const tasksByList = useMemo(() => {
+    const out: Record<string, Task[]> = {};
+    for (const l of lists) out[l.id] = orderTasks(tasks, l.id, showCompleted);
+    return out;
+  }, [lists, tasks, showCompleted]);
+
+  const onSelect = useCallback((id: string | null) => {
+    const s = useStore.getState();
+    const task = id ? s.tasks.find((t) => t.id === id) : undefined;
+    if (task && task.listId !== s.activeListId) s.setActiveList(task.listId);
+    s.select(id);
+  }, []);
+  const onSelectList = useCallback((id: string) => useStore.getState().setActiveList(id), []);
+  const onOpen = useCallback((id: string) => {
+    const s = useStore.getState();
+    const task = s.tasks.find((t) => t.id === id);
+    if (task && task.listId !== s.activeListId) s.setActiveList(task.listId);
+    s.openEditor(id);
+  }, []);
   const onToggle = useCallback((id: string) => void useStore.getState().toggleComplete(id), []);
 
   const hints = useMemo(
     () => [
+      ['Drag', 'explore'],
+      ['Scroll', 'zoom'],
       ['N', 'new'],
       ['↑↓', 'select'],
-      ['Space', 'complete'],
+      ['Space / click again', 'complete'],
       ['Enter', 'edit'],
       ['Del', 'delete'],
       ['Ctrl Z', 'undo'],
@@ -79,23 +104,20 @@ function Main() {
   return (
     <main className="main">
       <Scene
-        tasks={tasks}
+        lists={lists}
+        tasksByList={tasksByList}
+        activeListId={activeListId}
         selectedId={selectedId}
-        accent={accent}
         quality={quality}
+        ambient={ambientMotion}
         reducedMotion={reducedMotion}
         onSelect={onSelect}
+        onSelectList={onSelectList}
         onOpen={onOpen}
         onToggle={onToggle}
       />
       <div className="overlay">
         <TaskInput />
-        {tasks.length === 0 && (
-          <div className="empty-state">
-            <h2>{totalInList === 0 ? 'Nothing here yet' : 'All done ✨'}</h2>
-            <p>{totalInList === 0 ? 'Type above or press N to add your first task.' : 'Every task in this list is complete. Press H to show them.'}</p>
-          </div>
-        )}
         <div className="hint-bar" aria-hidden="true">
           {hints.map(([k, label]) => (
             <span key={k}>

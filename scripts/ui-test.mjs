@@ -28,13 +28,13 @@ const check = (name, ok, detail = '') => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  (${detail})` : ''}`);
   if (!ok) failures++;
 };
-const titles = () => page.$$eval('.card-title', (els) => els.map((e) => e.textContent ?? ''));
+const titles = () => page.$$eval('.orb-title', (els) => els.map((e) => e.textContent ?? ''));
 const settle = (ms = 900) => page.waitForTimeout(ms);
 
 await page.goto(url);
 await page.evaluate(() => localStorage.clear());
 await page.reload();
-await page.waitForSelector('.card-title', { timeout: 20000 });
+await page.waitForSelector('.orb-title', { timeout: 20000 });
 await settle(1500);
 await page.screenshot({ path: join(outDir, '01-initial.png') });
 
@@ -48,6 +48,21 @@ check('canvas fills main area', Math.abs(canvas.cw - canvas.mw) <= 1 && Math.abs
 const initial = await titles();
 check('initial labels rendered', initial.length >= 8 && initial.every((t) => t.length > 0), `${initial.length} labels; first="${initial[0]}"`);
 check('first task label present', initial.includes('Reply to Rahim about the weekend trip'));
+
+// Drag the universe around and zoom; labels should move with the scene.
+const labelPos = () => page.$eval('.zone-label', (e) => e.getBoundingClientRect().x);
+const x0 = await labelPos();
+await page.mouse.move(700, 600);
+await page.mouse.down();
+for (let i = 1; i <= 10; i++) await page.mouse.move(700 - i * 35, 600 - i * 12);
+await page.mouse.up();
+await settle(1500);
+const x1 = await labelPos();
+check('drag pans the scene', Math.abs(x1 - x0) > 100, `${Math.round(x0)} -> ${Math.round(x1)}`);
+await page.screenshot({ path: join(outDir, '01b-after-drag.png') });
+await page.mouse.wheel(0, 600);
+await settle(1200);
+await page.screenshot({ path: join(outDir, '01c-zoomed-out.png') });
 
 // Add an English task with quick-add syntax.
 await page.keyboard.press('n');
@@ -70,7 +85,7 @@ await page.keyboard.press('ArrowDown');
 await settle(300);
 await page.keyboard.press('Space');
 await settle();
-const doneCount = await page.$$eval('.card-label.is-done', (e) => e.length);
+const doneCount = await page.$$eval('.orb-label.is-done', (e) => e.length);
 check('complete via Space', doneCount >= 1, `${doneCount} done`);
 await page.screenshot({ path: join(outDir, '02-after-complete.png') });
 
@@ -119,7 +134,7 @@ await page.screenshot({ path: join(outDir, '05-work-list.png') });
 
 // Persistence across reload
 await page.reload();
-await page.waitForSelector('.card-title');
+await page.waitForSelector('.orb-title');
 await page.keyboard.press('Control+1');
 await settle(1200);
 t = await titles();

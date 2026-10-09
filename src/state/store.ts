@@ -34,6 +34,8 @@ export interface AppState {
   settingsOpen: boolean;
   showCompleted: boolean;
   quality: QualityTier;
+  /** Spheres float and the background drifts while the window is focused. */
+  ambientMotion: boolean;
   /** Incremented to ask the task input to take focus. */
   inputFocusToken: number;
   toasts: Toast[];
@@ -60,6 +62,7 @@ export interface AppState {
   setSettingsOpen(open: boolean): void;
   toggleShowCompleted(): void;
   setQuality(q: QualityTier): void;
+  toggleAmbientMotion(): void;
   focusInput(): void;
   pushToast(t: Omit<Toast, 'id'>): void;
   dismissToast(id: number): void;
@@ -68,6 +71,7 @@ export interface AppState {
 const UNDO_LIMIT = 50;
 const QUALITY_KEY = 'wotask:quality';
 const SHOW_COMPLETED_KEY = 'wotask:showCompleted';
+const AMBIENT_KEY = 'wotask:ambientMotion';
 
 let repo: TaskRepository = createRepository();
 let toastSeq = 1;
@@ -163,6 +167,7 @@ export const useStore = create<AppState>()((set, get) => {
     settingsOpen: false,
     showCompleted: readPref(SHOW_COMPLETED_KEY, ['true', 'false'], 'true') === 'true',
     quality: readPref<QualityTier>(QUALITY_KEY, ['high', 'medium', 'low'], 'high'),
+    ambientMotion: readPref(AMBIENT_KEY, ['true', 'false'], 'true') === 'true',
     inputFocusToken: 0,
     toasts: [],
     undoStack: [],
@@ -409,6 +414,15 @@ export const useStore = create<AppState>()((set, get) => {
         /* preference is best-effort */
       }
       set({ quality });
+    },
+    toggleAmbientMotion() {
+      const ambientMotion = !get().ambientMotion;
+      try {
+        localStorage.setItem(AMBIENT_KEY, String(ambientMotion));
+      } catch {
+        /* preference is best-effort */
+      }
+      set({ ambientMotion });
     },
     focusInput() {
       set((s) => ({ inputFocusToken: s.inputFocusToken + 1 }));

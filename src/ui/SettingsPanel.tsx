@@ -15,6 +15,8 @@ export function SettingsPanel() {
   const dataPath = useStore((s) => s.dataPath);
   const showCompleted = useStore((s) => s.showCompleted);
   const toggleShowCompleted = useStore((s) => s.toggleShowCompleted);
+  const ambientMotion = useStore((s) => s.ambientMotion);
+  const toggleAmbientMotion = useStore((s) => s.toggleAmbientMotion);
 
   if (!open) return null;
 
@@ -46,6 +48,10 @@ export function SettingsPanel() {
           <label className="toggle">
             <input type="checkbox" checked={showCompleted} onChange={toggleShowCompleted} />
             <span>Show completed tasks</span>
+          </label>
+          <label className="toggle">
+            <input type="checkbox" checked={ambientMotion} onChange={toggleAmbientMotion} />
+            <span>Ambient motion (floating spheres, drifting space). Pauses automatically when the window is in the background.</span>
           </label>
         </section>
 

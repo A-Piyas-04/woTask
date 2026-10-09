@@ -21,13 +21,17 @@ export function fuzzyScore(query: string, text: string): number {
   let score = 0;
   let ti = 0;
   let streak = 0;
+  let first = -1;
   for (const ch of q) {
     const found = t.indexOf(ch, ti);
     if (found < 0) return -1;
+    if (first < 0) first = found;
     streak = found === ti ? streak + 1 : 0;
     score += 10 + streak * 5 - (found - ti);
     ti = found + 1;
   }
+  // Letters scattered across a long title are not a meaningful match.
+  if (ti - first > q.length * 3) return -1;
   return score;
 }
 

@@ -116,9 +116,6 @@ export interface ChainMeta {
   /** The first step of this task's chain; its own id when it is that step. */
   rootId: string;
   successorIds: string[];
-  /** Position among the blocker's successors, and how many there are: drives the fork splay. */
-  forkIndex: number;
-  forkCount: number;
   /** The blocker's `completedAt` (0 when none). Changes exactly when the blocker is completed. */
   unlockToken: number;
 }

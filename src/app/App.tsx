@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import type { Task } from '../contracts/task';
 import { Scene } from '../scene/Scene';
 import type { SpaceStats } from '../scene/objects/Constellation';
-import { orderTasks, useStore, visibleSpaces } from '../state/store';
+import { chainIndex, orderTasks, useStore, visibleSpaces } from '../state/store';
 import { CommandPalette } from '../ui/CommandPalette';
 import { DetailPanel } from '../ui/DetailPanel';
 import { Onboarding } from '../ui/Onboarding';
@@ -123,6 +123,13 @@ function Main() {
     return out;
   }, [shown, tasks, showCompleted]);
 
+  /**
+   * Built from the full task list on purpose. Derived per visible space instead, a completed
+   * blocker that the show-completed filter is currently hiding would disappear, and a locked task
+   * would read as unlocked.
+   */
+  const chains = useMemo(() => chainIndex(tasks), [tasks]);
+
   const spaceStats = useMemo(() => {
     const out: Record<string, SpaceStats> = {};
     for (const t of tasks) {
@@ -154,6 +161,7 @@ function Main() {
         spaces={shown}
         tasksBySpace={tasksBySpace}
         spaceStats={spaceStats}
+        chains={chains}
         hideLabels={HIDE_LABELS}
         activeSpaceId={activeSpaceId}
         spaceFocusToken={spaceFocusToken}

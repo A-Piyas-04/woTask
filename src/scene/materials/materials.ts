@@ -99,6 +99,7 @@ type SharedKind =
   | 'hairline'
   | 'hairlineDashed'
   | 'hairlineDouble'
+  | 'chevron'
   | 'disc';
 
 const HAIRLINE_INNER = 0.997;
@@ -107,6 +108,20 @@ function dashedRing(): THREE.BufferGeometry {
   const { dashes, duty } = MATERIALS.dashedBoundary;
   const step = (Math.PI * 2) / dashes;
   return mergeGeometries(Array.from({ length: dashes }, (_, i) => new THREE.RingGeometry(HAIRLINE_INNER, 1, 4, 1, i * step, step * duty)));
+}
+
+/**
+ * Unit triangle in XY pointing along +X: the chain link's direction marker.
+ *
+ * Flat in the zone plane rather than billboarded, because the camera only pans and zooms - it never
+ * orbits - so XY is always close to face-on. That keeps the chevron a single static matrix write
+ * instead of a per-frame camera-facing recomputation.
+ */
+function chevron(): THREE.BufferGeometry {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([1, 0, 0, -0.75, 0.8, 0, -0.75, -0.8, 0]), 3));
+  g.setIndex([0, 1, 2]);
+  return g;
 }
 
 function doubleRing(): THREE.BufferGeometry {
@@ -128,6 +143,7 @@ export function sharedGeometry(kind: SharedKind, segments: number): THREE.Buffer
     else if (kind === 'hairline') g = new THREE.RingGeometry(HAIRLINE_INNER, 1, 192);
     else if (kind === 'hairlineDashed') g = dashedRing();
     else if (kind === 'hairlineDouble') g = doubleRing();
+    else if (kind === 'chevron') g = chevron();
     else if (kind === 'disc') g = new THREE.CircleGeometry(1, 96);
     else g = new THREE.RingGeometry(0.96, 1, 96);
     geometryCache.set(key, g);

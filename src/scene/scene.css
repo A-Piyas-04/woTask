@@ -75,8 +75,39 @@
   color: var(--text-faint);
 }
 
+/* Due tones: carried by weight and opacity, so `--alert` stays reserved for overdue alone. */
+.orb-due.tone-today {
+  color: var(--text);
+  font-weight: 500;
+}
+.orb-due.tone-soon {
+  color: var(--text-muted);
+}
+.orb-due.tone-later {
+  color: var(--text-faint);
+}
 .orb-due.tone-overdue {
   color: var(--alert);
+}
+
+/*
+ * Locked: a word, not a glyph. No icon font ships with the app, and an emoji padlock renders
+ * differently on every machine. The orb itself carries the state; this just names it.
+ */
+.orb-lock {
+  color: var(--text-faint);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.86em;
+}
+.orb-lock.is-warn {
+  font-style: italic;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-muted);
+}
+.orb-label.is-locked .orb-title {
+  color: var(--text-muted);
 }
 
 .zone-label {

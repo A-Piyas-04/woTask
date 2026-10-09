@@ -2,7 +2,7 @@ import { Canvas } from '@react-three/fiber';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import type { QualityTier } from '../contracts/events';
-import type { Space, Task } from '../contracts/task';
+import type { ChainIndex, Space, Task } from '../contracts/task';
 import { CAMERA, CONSTELLATION, EFFECTS, PALETTE, PARALLAX, QUALITY } from '../contracts/tokens';
 import { CameraRig, type CameraFocus } from './CameraRig';
 import { Composer } from './effects/Composer';
@@ -23,6 +23,8 @@ export interface SceneProps {
   tasksBySpace: Record<string, Task[]>;
   /** Open/done counts per space over all tasks, independent of the show-completed filter. */
   spaceStats: Record<string, SpaceStats>;
+  /** Chain metadata for every chained task, derived in `App.tsx` from the full task list. */
+  chains: ChainIndex;
   activeSpaceId: string | null;
   /** Changes whenever a space is chosen; re-centres the camera even on the already-active space. */
   spaceFocusToken: number;
@@ -63,7 +65,8 @@ function usePageActive(): boolean {
  * focused and visible; otherwise it renders on demand, so a background window costs ~0% GPU.
  */
 export function Scene(props: SceneProps) {
-  const { spaces, tasksBySpace, spaceStats, activeSpaceId, spaceFocusToken, selectedId, quality, ambient, reducedMotion } = props;
+  const { spaces, tasksBySpace, spaceStats, chains, activeSpaceId, spaceFocusToken, selectedId, quality, ambient, reducedMotion } =
+    props;
   const q = QUALITY[quality];
   const labelLayer = useRef<HTMLDivElement>(null);
   const registry = useMemo<PositionRegistry>(() => new Map(), []);
@@ -71,7 +74,7 @@ export function Scene(props: SceneProps) {
   const pageActive = usePageActive();
   const animate = ambient && !reducedMotion && pageActive;
 
-  const layout = useMemo(() => computeLayout(spaces, tasksBySpace), [spaces, tasksBySpace]);
+  const layout = useMemo(() => computeLayout(spaces, tasksBySpace, chains), [spaces, tasksBySpace, chains]);
   const activeSpace = spaces.find((g) => g.id === activeSpaceId);
   const tint = activeSpace ? spaceRamp(activeSpace.colorIndex).base : null;
 
@@ -136,6 +139,7 @@ export function Scene(props: SceneProps) {
               spacing={layout.zoneSpacing}
               registry={registry}
               labelLayer={labelLayer}
+              reducedMotion={reducedMotion}
               onSelectSpace={props.onSelectSpace}
             />
           ))}

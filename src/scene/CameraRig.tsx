@@ -16,6 +16,25 @@ export interface CameraFocus {
 }
 
 /**
+ * How far back the camera must sit for `focus.frame` to fit between the zone title and the
+ * quick-capture bar.
+ *
+ * Only ever used to pull *back*, never to zoom in: a space the user has zoomed into stays where
+ * they put it, but choosing a space always shows the whole of it. Zones used to be close enough in
+ * size that the fixed default distance worked for all of them; a space holding a long chain is
+ * taller than one holding the same tasks loose, and would otherwise run off the bottom edge.
+ */
+function fitDistance(focus: CameraFocus, heightPx: number, current: number, maxDistance: number): number {
+  if (!focus.frame) return current;
+  const fov = (CAMERA.fov * Math.PI) / 180;
+  const usablePx = heightPx - CHROME.titleClearancePx - CHROME.zoneTitlePx - CHROME.inputBarPx;
+  if (usablePx <= 0) return current;
+  const worldHeight = focus.frame.top - focus.frame.bottom + 2 * CAMERA.pointerParallax[1];
+  const needed = worldHeight / (2 * Math.tan(fov / 2) * (usablePx / heightPx));
+  return Math.min(maxDistance, Math.max(current, needed));
+}
+
+/**
  * Camera y for a focus target: as close to `focus.y` as possible while the zone title stays
  * `CHROME.titleClearancePx` below the canvas top and the zone stays above the quick-capture bar.
  * If both cannot fit, the title wins.
@@ -75,6 +94,7 @@ export function CameraRig({ focus, bounds, maxDistance, far, reducedMotion }: Pr
     const f = live.current.focus;
     if (!f) return;
     target.current.x = f.x;
+    target.current.z = fitDistance(f, live.current.size.height, target.current.z, live.current.maxDistance);
     target.current.y = framedY(f, target.current.z, live.current.size.height);
     velocity.current.set(0, 0);
     flying.current = true;

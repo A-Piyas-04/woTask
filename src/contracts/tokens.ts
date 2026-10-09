@@ -155,7 +155,47 @@ export const MATERIALS = {
   hub: { radius: 0.3, intensity: 1.6 },
   /** Goal progress arc around the hub: space hue at 40%, kept below the bloom threshold. The faint full track shows the remainder. */
   goalArc: { radius: 0.62, width: 0.035, opacity: 0.4, trackOpacity: 0.12 },
+  /** The decorative constellation tree over the loose orbs. Carries no meaning. */
   lines: { activeOpacity: 0.22, inactiveOpacity: 0.1, parentBoost: 1.2, childFade: 0.7 },
+  /**
+   * Dependency links. Always the space hue - a link is never a new colour. Direction is carried by
+   * the static chevron and the brightness gradient; motion is reserved for "unlocked" and for the
+   * one-shot unlock, so a locked link is perfectly still and costs nothing while the canvas idles.
+   */
+  chain: {
+    /** Multipliers on the space hue at each end: bright at the blocker, fading toward the successor. */
+    sourceBoost: 1.35,
+    targetFade: 0.45,
+    /** A locked link reads dimmer than the decorative tree, and never moves. */
+    unlockedOpacity: 0.34,
+    lockedOpacity: 0.14,
+    /** Matches `zoneDisc.inactiveFactor`, so links recede with the rest of an inactive zone. */
+    inactiveFactor: 0.4,
+    /**
+     * Direction chevron: the primary signal, and deliberately static. `NormalBlending`, not
+     * additive - a bright additive triangle stacked on an additive line is what would cross
+     * `EFFECTS.bloom.luminanceThreshold`. `boost` stays at or below `ring`'s known-safe 1.2.
+     */
+    chevron: { at: 0.62, size: 0.17, boost: 1.2, lockedBoost: 0.7 },
+    /** Ambient-only flow dot on unlocked links. Small, additive, below the selection ring's boost. */
+    flow: { size: 0.1, boost: 1.25, opacity: 0.5, seconds: 2.4 },
+    /** The locked orb. Factors multiply the priority style; the rest are absolute targets. */
+    locked: {
+      /** Near-extinguished, never dead: at priority 3 this lands below priority 0's resting 0.8. */
+      coreFactor: 0.18,
+      /** Frosted *and* sealed - rougher and less transmissive than `completed`, which reads hollow. */
+      roughness: 0.62,
+      transmission: 0.55,
+      /** Only slightly smaller: a lock must never be mistaken for low priority or completion. */
+      radiusFactor: 0.92,
+      /** Two crossing latitude bands in `ramp.dim`: a restraint, not a ring. Static. */
+      cage: { radiusRatio: 1.06, opacity: 0.55, tilt: 0.55, breakScale: 2.2 },
+      /** Multiplier on float amplitude and body spin. A locked orb barely drifts. */
+      floatFactor: 0.25,
+    },
+    /** Unlock: the `MOTION.burst` machinery, retimed and sent along the link. */
+    unlock: { seconds: 0.55, peakOpacity: 0.45, size: 0.22 },
+  },
   /** Zone floor: radial-gradient disc plus a hairline boundary. */
   zoneDisc: { centerAlpha: 0.05, hairlineOpacity: 0.1, inactiveFactor: 0.4 },
   /** Category boundaries are dashed: dash count around the ellipse and the drawn share of each dash. */
@@ -222,6 +262,41 @@ export const CONSTELLATION = {
   orbitPadding: 1.3,
 } as const;
 
+/**
+ * Dependency chains get their own layout track: loose tasks keep the golden-angle spiral, and each
+ * chain winds around the hub as a necklace in the annulus just outside that spiral.
+ *
+ * Angle does nearly all the work and radius almost none, which is what keeps a chain compact. An
+ * arm that marched straight outward would spike into one wedge, leaving the rest of the zone empty
+ * and forcing the camera far enough back to shrink every orb. Winding instead fills the annulus
+ * evenly, so a space holding a chain is barely larger than the same tasks laid out loose.
+ */
+export const CHAIN = {
+  /**
+   * Radial step between consecutive links. Small on purpose - just enough that after a full turn the
+   * next lap clears the previous one. The exponent flattens long chains further.
+   */
+  stepRadius: 0.55,
+  stepExponent: 0.72,
+  /** Clearance between the loose spiral's outer edge and the first link of any arm. */
+  bandClearance: 1.8,
+  /**
+   * Angular advance per step around the hub, radians: the main separation between consecutive links.
+   * Narrowed automatically when a zone holds many chained tasks so they still fit in one turn, and
+   * floored so a very wide fan stays legible rather than collapsing onto itself.
+   */
+  curl: 0.5,
+  minCurl: 0.16,
+  /** Empty angle left between the last step and the first, so a full turn does not close up. */
+  armGuard: 0.3,
+  /** Arms sit out of the spiral's plane, so an inner link never ambiguously overlaps a loose orb. */
+  depthLift: 0.55,
+  /** Share of the usual per-task z jitter an arm keeps; low, so a chain stays legible as a path. */
+  depthJitterFactor: 0.4,
+  /** Recursion and radius cap. Also the last line of defence against cyclic data. */
+  maxDepth: 24,
+} as const;
+
 /** Application chrome over the canvas, in CSS pixels; the camera frames zones to clear it. */
 export const CHROME = {
   /** Quick-capture bar plus hint line at the bottom of the canvas. */
@@ -256,10 +331,17 @@ export const CAMERA = {
   pointerParallax: [1.1, 0.7] as [number, number],
   dragThresholdPx: 5,
   boundsMargin: 8,
-  /** Active-space labels are shown when the camera is closer than this. */
-  labelDistance: 24,
+  /**
+   * Active-space labels are shown when the camera is closer than this.
+   *
+   * Sized against the distance it takes to frame one zone, not a fixed number: a space holding a
+   * long chain is taller than one holding the same tasks loose, so the camera sits further back for
+   * it, and these thresholds have to clear the largest single-zone framing or its labels never
+   * appear. Well below the zoomed-out universe view, which is what they exist to suppress.
+   */
+  labelDistance: 32,
   /** All labels fade out with camera distance between these two (smoothstep). */
-  labelFade: [20, 34] as [number, number],
+  labelFade: [26, 42] as [number, number],
   /** Skip the label collision pass while the camera moves faster than this (world units / s). */
   labelCollisionMaxSpeed: 4,
   /** Collision pass only considers this many visible labels. */

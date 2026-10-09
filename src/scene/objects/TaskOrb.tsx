@@ -36,6 +36,18 @@ export const isOverdue = (dueAt: number | null, completedAt: number | null, now:
 /**
  * One task. Hue = its space (every state). Priority = size, core luminance, glass finish and motion.
  * Completed = desaturated toward neutral. Overdue = thin alert ring, the one permitted exception.
+ *
+ * Locked (a chain step whose blocker is still open) has to be unmistakable from both of the states
+ * it could be confused with, so it moves the axes in the opposite direction from each:
+ *
+ *   - vs completed: completed desaturates toward grey and shrinks below priority 0; locked keeps its
+ *     full space hue at near-full size, and frosts *and* seals the glass so it reads solid rather
+ *     than hollow.
+ *   - vs low priority: low priority is small and dim; locked is large and dark, plus caged.
+ *
+ * Size therefore still means priority and nothing else. Completion wins over the lock on the orb
+ * itself - a task completed out of order reads as done, and the unresolved sequence shows on its
+ * incoming link instead.
  */
 export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
   const { orb, selected, segments, ramp } = props;
@@ -51,10 +63,14 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
   const overdueRing = useRef<THREE.Mesh>(null);
   const halo = useRef<THREE.Mesh>(null);
   const burst = useRef<THREE.Mesh>(null);
+  const cageA = useRef<THREE.Mesh>(null);
+  const cageB = useRef<THREE.Mesh>(null);
 
   const done = task.completedAt !== null;
   const overdue = isOverdue(task.dueAt, task.completedAt, Date.now());
   const style = MATERIALS.priority[task.priority];
+  const locked = orb.chain?.locked === true;
+  const outOfOrder = orb.chain?.outOfOrder === true;
 
   // Materials are created once with the initial colours; useFrame animates them afterwards.
   const initial = useRef({ ramp, done, style });
@@ -95,18 +111,26 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
     m.opacity = 0;
     return m;
   }, []);
+  /** Two crossing latitude bands: nothing else in the stack is a crossing pair, so it cannot be misread. */
+  const cageMat = useMemo(() => {
+    const m = createGlowMaterial(initial.current.ramp.dim, 1, { transparent: true });
+    m.opacity = 0;
+    return m;
+  }, []);
   useEffect(
     () => () => {
-      for (const m of [glass, coreMat, haloMat, highRingMat, overdueMat, ringMat, burstMat]) m.dispose();
+      for (const m of [glass, coreMat, haloMat, highRingMat, overdueMat, ringMat, burstMat, cageMat]) m.dispose();
     },
-    [glass, coreMat, haloMat, highRingMat, overdueMat, ringMat, burstMat],
+    [glass, coreMat, haloMat, highRingMat, overdueMat, ringMat, burstMat, cageMat],
   );
 
   const hovered = useRef(false);
   const pressed = useRef(false);
   const mountedAt = useRef<number | null>(null);
   const burstStart = useRef<number | null>(null);
+  const unlockStart = useRef<number | null>(null);
   const wasDone = useRef(done);
+  const wasLocked = useRef(locked);
   const tmp = useMemo(
     () => ({ core: new THREE.Color(), c: new THREE.Color(), pos: new THREE.Vector3(), intensity: { v: initial.current.style.coreIntensity } }),
     [],
@@ -126,7 +150,7 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
   // Mounting is a discrete decision (hover is an event, not per-frame): every mounted <Html> costs a
   // projection and a style write each frame, so labels that can never be shown are not mounted.
   const [hoverLabel, setHoverLabel] = useState(false);
-  const mountLabel = props.labelEligible || selected || hoverLabel || overdue || (style.ring && !done);
+  const mountLabel = props.labelEligible || selected || hoverLabel || overdue || (style.ring && !done && !locked);
   const livePos = useMemo(() => new THREE.Vector3(...orb.rest), [orb.rest]);
   const label = useLabelEntry(props.labels, task.id, labelEl, {
     pos: livePos,
@@ -143,6 +167,17 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
     wasDone.current = done;
     invalidate();
   }, [done, invalidate]);
+
+  /**
+   * The release. No new mesh and no new timer: once unlocked the cage bands are idle, so they *are*
+   * the animation - they break open and disperse. `locked` turning false is itself the event, so
+   * this needs no token.
+   */
+  useEffect(() => {
+    if (!locked && wasLocked.current && !live.current.reducedMotion) unlockStart.current = -1;
+    wasLocked.current = locked;
+    invalidate();
+  }, [locked, invalidate]);
 
   useEffect(() => {
     invalidate();
@@ -168,7 +203,10 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
     const isDone = task.completedAt !== null;
     const isOverdueNow = isOverdue(task.dueAt, task.completedAt, Date.now());
     const s = MATERIALS.priority[task.priority];
-    const radius = isDone ? MATERIALS.completed.radius : s.radius;
+    const L = MATERIALS.chain.locked;
+    // Completion wins over the lock on the orb; the unresolved sequence shows on the link instead.
+    const isLockedNow = !isDone && p.orb.chain?.locked === true;
+    const radius = isDone ? MATERIALS.completed.radius : s.radius * (isLockedNow ? L.radiusFactor : 1);
     const [rx, ry, rz] = p.orb.rest;
 
     if (mountedAt.current === null) {
@@ -183,9 +221,12 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
 
     let moving = false;
 
-    // Float in place around the rest position.
+    // Float in place around the rest position. A locked orb barely drifts - the cheapest and
+    // clearest cue there is, and it reduces GPU work rather than adding any.
     const floating = p.ambient && !p.reducedMotion;
-    const [ax, ay, az] = MOTION.float.amplitude;
+    const drift = isLockedNow ? L.floatFactor : 1;
+    const [ax0, ay0, az0] = MOTION.float.amplitude;
+    const [ax, ay, az] = [ax0 * drift, ay0 * drift, az0 * drift];
     const [sx, sy, sz] = MOTION.float.speed;
     const [px, py, pz] = p.orb.phase;
     tmp.pos.set(
@@ -198,13 +239,16 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
     const stateScale = pressed.current ? CONSTELLATION.pressScale : p.selected ? CONSTELLATION.selectedScale : hovered.current ? CONSTELLATION.hoverScale : 1;
     const scaleTime = pressed.current ? MOTION.press.smoothTime : t - mountedAt.current < 1.2 ? MOTION.enter.smoothTime : MOTION.layout.smoothTime;
     moving = easing.damp3(b.scale, radius * stateScale, scaleTime * k, dt) || moving;
-    if (floating) b.rotation.y += dt * 0.25;
+    if (floating) b.rotation.y += dt * 0.25 * drift;
 
     // Core luminance carries priority; hover/selection boost it, high priority breathes.
-    const base = isDone ? MATERIALS.completed.coreIntensity : s.coreIntensity;
-    const boost = isDone ? 1 : p.selected ? MATERIALS.core.selectedBoost : hovered.current ? MATERIALS.core.hoverBoost : 1;
+    // Near-extinguished while locked, and the hover/selection boosts are suppressed so the orb
+    // stays visibly held even under the pointer. At priority 3 this lands below priority 0's
+    // resting 0.8, so a locked high-priority task cannot read as a live one.
+    const base = isDone ? MATERIALS.completed.coreIntensity : s.coreIntensity * (isLockedNow ? L.coreFactor : 1);
+    const boost = isDone || isLockedNow ? 1 : p.selected ? MATERIALS.core.selectedBoost : hovered.current ? MATERIALS.core.hoverBoost : 1;
     moving = easing.damp(tmp.intensity, 'v', base * boost, MOTION.color.smoothTime * k, dt) || moving;
-    const breathing = s.ring && !isDone && floating;
+    const breathing = s.ring && !isDone && !isLockedNow && floating;
     const breath = breathing ? 1 + Math.sin(t * TAU * MOTION.breathe.hz) * MOTION.breathe.amount : 1;
     tmp.core.set(isDone ? r.completed : r.core).multiplyScalar(tmp.intensity.v * breath);
     moving = easing.dampC(coreMat.color, tmp.core, MOTION.color.smoothTime * k, dt) || moving;
@@ -212,15 +256,19 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
     // Glass: tinted by the space hue; finish carries priority.
     moving = easing.dampC(glass.attenuationColor, tmp.c.set(isDone ? r.completed : r.base), MOTION.color.smoothTime * k, dt) || moving;
     moving = easing.dampC(glass.color, tmp.c.set(isDone ? r.completedGlass : r.glass), MOTION.color.smoothTime * k, dt) || moving;
-    moving = easing.damp(glass, 'roughness', isDone ? MATERIALS.completed.roughness : s.roughness, MOTION.color.smoothTime * k, dt) || moving;
-    moving = easing.damp(glass, 'transmission', isDone ? MATERIALS.completed.transmission : s.transmission, MOTION.color.smoothTime * k, dt) || moving;
-    moving =
-      easing.damp(glass, 'iridescence', isDone ? MATERIALS.completed.iridescence : MATERIALS.glass.iridescence, MOTION.color.smoothTime * k, dt) || moving;
+    // Frosted and sealed while locked - rougher *and* less transmissive than completed, which reads
+    // hollow. The glass colour is deliberately left at the full space hue: hue is the discriminator.
+    const roughTarget = isDone ? MATERIALS.completed.roughness : isLockedNow ? L.roughness : s.roughness;
+    const transTarget = isDone ? MATERIALS.completed.transmission : isLockedNow ? L.transmission : s.transmission;
+    const iridTarget = isDone ? MATERIALS.completed.iridescence : isLockedNow ? 0 : MATERIALS.glass.iridescence;
+    moving = easing.damp(glass, 'roughness', roughTarget, MOTION.color.smoothTime * k, dt) || moving;
+    moving = easing.damp(glass, 'transmission', transTarget, MOTION.color.smoothTime * k, dt) || moving;
+    moving = easing.damp(glass, 'iridescence', iridTarget, MOTION.color.smoothTime * k, dt) || moving;
 
     // Medium: faint inner halo.
     const h = halo.current;
     if (h) {
-      moving = easing.damp(haloMat, 'opacity', s.halo && !isDone ? MATERIALS.halo.opacity : 0, MOTION.color.smoothTime * k, dt) || moving;
+      moving = easing.damp(haloMat, 'opacity', s.halo && !isDone && !isLockedNow ? MATERIALS.halo.opacity : 0, MOTION.color.smoothTime * k, dt) || moving;
       haloMat.color.set(r.core);
       h.visible = haloMat.opacity > 0.01;
     }
@@ -228,7 +276,9 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
     // High: thin equatorial ring in the core colour.
     const hr = highRing.current;
     if (hr) {
-      moving = easing.damp(highRingMat, 'opacity', s.ring && !isDone ? MATERIALS.highRing.opacity * breath : 0, MOTION.color.smoothTime * k, dt) || moving;
+      // A locked high-priority orb loses its ring and gains the cage; the ring returning is the release.
+      const ringTarget = s.ring && !isDone && !isLockedNow ? MATERIALS.highRing.opacity * breath : 0;
+      moving = easing.damp(highRingMat, 'opacity', ringTarget, MOTION.color.smoothTime * k, dt) || moving;
       highRingMat.color.set(r.core);
       hr.visible = highRingMat.opacity > 0.01;
       hr.scale.setScalar(b.scale.x * MATERIALS.highRing.radiusRatio);
@@ -253,6 +303,46 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
       sr.scale.setScalar(b.scale.x * MATERIALS.ring.radiusRatio);
       sr.rotation.x = 1.2 + (floating ? Math.sin(t * 0.7) * 0.15 : 0);
       if (floating) sr.rotation.y += dt * 0.6;
+    }
+
+    // The cage: static while locked, and the one-shot break-open on release. The overdue ring is
+    // deliberately kept on a locked orb - an overdue blocked task is a real problem and must still
+    // shout - so the cage has to look like nothing else here, hence a crossing pair rather than a ring.
+    const ca = cageA.current;
+    const cb = cageB.current;
+    if (ca && cb) {
+      let cageScale = b.scale.x * L.cage.radiusRatio;
+      let cageOpacity = isLockedNow ? L.cage.opacity : 0;
+
+      if (unlockStart.current === -1) unlockStart.current = t;
+      if (unlockStart.current !== null) {
+        const u = (t - unlockStart.current) / MATERIALS.chain.unlock.seconds;
+        if (u >= 1 || p.reducedMotion) {
+          unlockStart.current = null;
+        } else {
+          const e = 1 - (1 - u) ** 3;
+          cageScale = b.scale.x * L.cage.radiusRatio * (1 + e * (L.cage.breakScale - 1));
+          cageOpacity = (1 - e) * L.cage.opacity;
+          moving = true;
+        }
+      } else if (!isLockedNow) {
+        // Snap, rather than damp, so an orb that was never locked does not animate on mount.
+        cageMat.opacity = 0;
+      }
+
+      if (unlockStart.current === null) {
+        moving = easing.damp(cageMat, 'opacity', cageOpacity, MOTION.color.smoothTime * k, dt) || moving;
+      } else {
+        cageMat.opacity = cageOpacity;
+      }
+      cageMat.color.set(r.dim);
+      const show = cageMat.opacity > 0.01;
+      ca.visible = show;
+      cb.visible = show;
+      if (show) {
+        ca.scale.setScalar(cageScale);
+        cb.scale.setScalar(cageScale);
+      }
     }
 
     // Completion shockwave in the space hue, ease-out.
@@ -283,7 +373,7 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
       le.offsetY = radius * CONSTELLATION.selectedScale + CONSTELLATION.labelOffset;
       le.selected = p.selected;
       le.hovered = hovered.current;
-      le.important = (s.ring && !isDone) || isOverdueNow;
+      le.important = (s.ring && !isDone && !isLockedNow) || isOverdueNow;
       le.spaceId = p.orb.spaceId;
       le.rank = (p.selected ? 1000 : 0) + (hovered.current ? 500 : 0) + (isDone ? 0 : task.priority * 10) + (isOverdueNow ? 25 : 0);
     }
@@ -352,6 +442,22 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
           visible={false}
         />
       </group>
+      <mesh
+        ref={cageA}
+        geometry={sharedGeometry('highRing', 0)}
+        material={cageMat}
+        rotation-x={MATERIALS.chain.locked.cage.tilt}
+        raycast={noRaycast}
+        visible={false}
+      />
+      <mesh
+        ref={cageB}
+        geometry={sharedGeometry('highRing', 0)}
+        material={cageMat}
+        rotation-x={-MATERIALS.chain.locked.cage.tilt}
+        raycast={noRaycast}
+        visible={false}
+      />
       <mesh ref={highRing} geometry={sharedGeometry('highRing', 0)} material={highRingMat} rotation-x={1.25} raycast={noRaycast} visible={false} />
       <mesh ref={overdueRing} geometry={sharedGeometry('overdueRing', 0)} material={overdueMat} raycast={noRaycast} visible={false} />
       <mesh ref={ring} geometry={sharedGeometry('ring', 0)} material={ringMat} raycast={noRaycast} visible={false} />
@@ -366,15 +472,19 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
         >
           <div
             ref={setLabelEl}
-            className={`orb-label${done ? ' is-done' : ''}${selected ? ' is-selected' : ''}${overdue ? ' is-overdue' : ''}`}
+            className={`orb-label${done ? ' is-done' : ''}${selected ? ' is-selected' : ''}${overdue ? ' is-overdue' : ''}${
+              locked && !done ? ' is-locked' : ''
+            }${outOfOrder ? ' is-out-of-order' : ''}`}
             data-priority={task.priority}
             style={{ opacity: 0 }}
           >
             <div className="orb-title" lang="bn-BD en">
               {task.title}
             </div>
-            {(due || task.tags.length > 0) && (
+            {(due || task.tags.length > 0 || locked) && (
               <div className="orb-meta">
+                {locked && !done && <span className="orb-lock">blocked</span>}
+                {outOfOrder && <span className="orb-lock is-warn">out of order</span>}
                 {due && <span className={`orb-due tone-${due.tone}`}>{due.text}</span>}
                 {task.tags.slice(0, 2).map((t) => (
                   <span key={t} className="orb-tag">

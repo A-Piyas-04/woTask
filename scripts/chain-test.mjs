@@ -159,8 +159,6 @@ const ids = (ts) => ts.map((t) => t.id);
   eq('depth counts steps from the root', [meta.a.depth, meta.b.depth, meta.c.depth, meta.d.depth], [0, 1, 1, 2]);
   eq('every member shares the root id', [meta.a.rootId, meta.b.rootId, meta.c.rootId, meta.d.rootId], ['a', 'a', 'a', 'a']);
   eq('successors are listed in order', meta.a.successorIds, ['b', 'c']);
-  eq('fork index and count describe the splay', [meta.b.forkIndex, meta.b.forkCount, meta.c.forkIndex, meta.c.forkCount], [0, 2, 1, 2]);
-  eq('a root reports a fork count of one', [meta.a.forkIndex, meta.a.forkCount], [0, 1]);
   check('unlockToken is 0 while the blocker is open', meta.b.unlockToken === 0);
   eq('successorIndex groups by blocker', [...successorIndex(tasks).entries()], [['a', ['b', 'c']], ['c', ['d']]]);
 }

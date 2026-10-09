@@ -243,8 +243,6 @@ export function chainIndex(tasks: Task[]): ChainIndex {
     const successorIds = kids.get(t.id) ?? [];
     const blocker = t.blockedBy === null ? undefined : byId.get(t.blockedBy);
     if (blocker === undefined && successorIds.length === 0) continue;
-    const siblings = blocker === undefined ? [] : (kids.get(blocker.id) ?? []);
-    const forkIndex = siblings.indexOf(t.id);
     const { depth, rootId } = resolve(t.id);
     const locked = blocker !== undefined && blocker.completedAt === null;
     out[t.id] = {
@@ -254,8 +252,6 @@ export function chainIndex(tasks: Task[]): ChainIndex {
       depth,
       rootId,
       successorIds,
-      forkIndex: forkIndex < 0 ? 0 : forkIndex,
-      forkCount: Math.max(1, siblings.length),
       unlockToken: blocker?.completedAt ?? 0,
     };
   }

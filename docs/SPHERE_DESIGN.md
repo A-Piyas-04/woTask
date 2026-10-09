@@ -133,8 +133,14 @@ How to set priority:
 | Pressed | Mouse down | Scale ×0.9 (0.06 s squish) |
 | Selected | Click / `↑↓` / palette | Scale ×1.24, moves 0.6 toward the camera, core ×1.4, ring in the space hue, label shown; camera flies to it |
 | Overdue | Due date passed, not done | Thin ring in `#D4705F` at 70%, slowly rotating; label always shown, date in the alert colour |
-| Completed | Click a selected sphere / `Space` / editor | Shockwave ring in the space hue (0.7 s, peak 0.5, ease-out). Then: colour mix(base, `#6B7280`, 0.75), core 0.4, roughness 0.45, radius 0.40, title struck through at 45% |
+| Completed | Check on the label / selection bar / `Space` / editor | Shockwave ring in the space hue (0.7 s, peak 0.5, ease-out). Then: colour mix(base, `#6B7280`, 0.75), core 0.4, roughness 0.45, radius 0.40, title struck through at 45% |
+| Locked | Its blocker is not done | Full space hue at 0.92× radius, core ×0.18, roughness 0.62, transmission 0.55, two crossing latitude bands in the dim hue, float ×0.25. Halo and high-priority ring suppressed; the overdue ring is kept |
+| Unlocking | Its blocker was completed | The bands scale out to 2.2× and fade over 0.55 s, and a dot travels the link from blocker to successor |
 | Entering | Task created / app start | Grows from nothing and rises out of depth, 40 ms stagger |
+
+Locked has to be unmistakable from the two states it could be confused with, so it moves the axes in the opposite direction from each. Against **completed** (desaturated toward grey, shrunk below priority 0) it keeps full hue at near-full size and seals the glass, so it reads solid rather than hollow. Against **low priority** (small and dim) it is large, dark and caged. Size therefore still means priority and nothing else.
+
+Completion wins over the lock on the sphere itself: a task completed out of turn reads as done, and the unresolved sequence shows on its incoming link instead.
 
 Hide completed tasks with `H` (or the sidebar toggle).
 
@@ -143,20 +149,21 @@ Labels are DOM text at a constant size (12 px / 500 title, 10.5 px meta, Inter b
 
 - the sphere is selected or hovered;
 - the task is high priority or overdue;
-- it is in the active space and the camera is closer than 24 units.
+- it is in the active space and the camera is closer than 32 units.
 
-Labels fade with camera distance (smoothstep between 20 and 34) and take 150 ms to fade in or out. A screen-space pass (`LabelCuller` in `src/scene/labels.ts`) hides the lower-ranked of any two overlapping labels. Rank: selected > hovered > priority > overdue. The pass considers at most 60 labels and is skipped while the camera moves fast. Visibility is written straight to `style.opacity` from `useFrame`, never through React state.
+Labels fade with camera distance (smoothstep between 26 and 42; sized against the distance it takes to frame the largest single zone, since a space holding a chain is taller than one holding the same tasks loose) and take 150 ms to fade in or out. A screen-space pass (`LabelCuller` in `src/scene/labels.ts`) hides the lower-ranked of any two overlapping labels. Rank: selected > hovered > priority > overdue. The pass considers at most 60 labels and is skipped while the camera moves fast. Visibility is written straight to `style.opacity` from `useFrame`, never through React state.
 
 ### Interaction summary
 | Action | Result |
 |---|---|
-| Click sphere | Select it (and make its space active) |
-| Click selected sphere again | Toggle complete |
+| Click sphere | Select it (and make its space active) — only ever this |
+| Check on the label | Complete / reopen. The label layer is transparent to the pointer; this control is the one thing in it that is not |
 | Double-click sphere | Open the editor panel |
 | Click hub | Make that space active |
 | Click empty space | Deselect |
 | `↑` / `↓` (or `J` / `K`) | Select previous/next task in the active space |
-| `Alt+↑` / `Alt+↓` | Reorder the selected task |
+| `Alt+↑` / `Alt+↓` | Move among siblings, carrying the subtree |
+| `L` | Pick what this task comes after |
 | `Del` | Delete (toast offers Undo) |
 | `?` | All shortcuts, grouped Navigation / Tasks / Spaces / View |
 
@@ -167,7 +174,9 @@ A drag never counts as a click: if the pointer moves more than 5 px between pres
 ## 5. How spheres are placed inside a zone
 
 ### Order
-`orderTasks()` (`src/state/store.ts`): open tasks by `position` (your manual order), then completed tasks, most recent first (only if "Show completed" is on). New tasks get the lowest position, so **the newest task sits closest to the hub**.
+`orderTasks()` (`src/state/store.ts`) walks open tasks depth-first so every chain comes out contiguous — a blocker immediately followed by its subtree — then completed tasks, most recent first (only if "Show completed" is on). New tasks get the lowest position, so **the newest loose task sits closest to the hub**.
+
+This single order drives the spiral, `↑`/`↓` selection, label ranking and `Alt+↑`/`Alt+↓`. A separate ordering track for chains would mean two different answers to "what comes next".
 
 ### Golden-angle spiral
 Task `i` (0-based) in a zone with centre `(cx, cy)`:
@@ -182,6 +191,26 @@ z     = (hash(taskId) − 0.5) × depthJitter          // ±0.9 depth variation
 
 This is the sunflower-seed pattern: spheres never overlap, the cluster grows evenly, and adding a task barely disturbs the rest. `spaceSpin` is a per-space hash so zones don't look identical. Moving a task to another space in the editor makes its sphere fly across space into the new zone.
 
+Only **unchained** tasks sit on the spiral. Chained ones have their own track (below), and the spiral is indexed over the loose tasks alone, so it stays dense.
+
+### Chain arms
+A chain winds around the hub as a necklace in the annulus just outside the spiral:
+
+```
+armStart = spiralRadius(looseCount) + bandClearance
+r        = armStart + stepRadius × depth ^ 0.72     // radius from depth
+angle    = armSpin + curl × walkIndex               // angle from depth-first position
+```
+
+`walkIndex` is the task's position in a depth-first walk of the chain. Giving every chained task its own angular slot is what makes this collision-free: two tasks can share a radius only at different angles, and an angle only at different radii. `curl` narrows automatically when a zone holds many chained tasks, so they still fit within one turn.
+
+Angle does nearly all the work and radius almost none, which is what keeps a chain compact. Two earlier designs failed and are worth not repeating:
+
+- An arm marching straight outward spiked into one wedge, left most of the zone empty, and forced the camera back far enough to shrink every sphere.
+- Allocating angle by fork — splaying branches around a shared centre — let a deep step on one branch drift onto a shallow step of its neighbour, because the per-depth winding outgrew the per-fork splay.
+
+The walk is computed in `placeZone`, not taken from display order, because display order sends completed tasks to the end: a step finished out of turn would be flung to the far side of the ring, breaking the sequence and dragging its links across the zone.
+
 ### Floating
 With ambient motion on, each sphere bobs around its rest position on three sine waves (amplitude `[0.16, 0.22, 0.14]`, speed `[0.55, 0.42, 0.37]` rad/s, phases from the task id).
 
@@ -189,7 +218,17 @@ With ambient motion on, each sphere bobs around its rest position on three sine 
 
 ## 6. Light lines
 
-Component: `src/scene/objects/Constellation.tsx`. Each sphere connects to the nearest of: the hub, or any sphere earlier in the order. The result is a crossing-free tree with one line per task. Lines use the space hue at 0.22 opacity (active) or 0.10 (inactive), slightly brighter at the parent end, and follow the floating spheres every frame. They carry no data.
+Component: `src/scene/objects/Constellation.tsx`. Two sets of lines, and the distinction matters.
+
+**Decorative tree.** Each *loose* sphere connects to the nearest of: the hub, or any loose sphere earlier in the order. A crossing-free tree, space hue at 0.22 opacity (active) or 0.10 (inactive), slightly brighter at the parent end, following the floating spheres every frame. It carries no data. Chained spheres are excluded — they already read as a sequence, and a second line over them would compete with the real one.
+
+**Dependency links.** One line per `blockedBy`, drawn with direction:
+
+- a brightness gradient, bright at the blocker and fading toward the successor — the energy has reached the blocker, it has not yet reached you;
+- a **static** chevron at 0.62 along the link pointing at the successor. Static is the point: under `frameloop="demand"` it costs nothing when nothing else moves, which is why the chevron carries direction and motion does not;
+- a flow dot that slides blocker → successor, **only on unlocked links and only while ambient motion is on**. A locked link never moves; the stillness is the "gate closed" read.
+
+Three draw calls per zone regardless of how many links there are. No link introduces a new colour — every layer is the space hue.
 
 ---
 
@@ -205,6 +244,8 @@ Component: `src/scene/CameraRig.tsx`.
 | Mouse position | Camera sways up to 1.1 × 0.7 units → parallax |
 | Select a task | Camera flies to that sphere |
 | Choose a space (sidebar, `Ctrl+←/→`, `Ctrl+1…9`, hub click) | Camera flies to that zone, framed so the title clears the top edge by 24 px and the zone clears the quick-capture bar. Choosing the already-active space re-centres on it |
+
+Zone framing also sets the distance (`fitDistance`), because zones are no longer all much the same size — a space holding a long chain is taller than one holding the same tasks loose, and at a fixed distance it ran off the bottom edge. It only ever pulls *back*: a space the user has zoomed into stays where they put it, but choosing a space always shows the whole of it.
 
 ---
 

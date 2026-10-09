@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "tauri": "tauri",
-    "audit:offline": "node scripts/offline-audit.mjs"
+    "audit:offline": "node scripts/offline-audit.mjs",
+    "test:ui": "node scripts/ui-test.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",

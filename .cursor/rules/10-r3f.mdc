@@ -1,0 +1,11 @@
+---
+description: React Three Fiber conventions for the 3D scene
+globs: src/scene/**
+alwaysApply: false
+---
+
+- The single `<Canvas>` uses `frameloop="demand"`. Any animation must call `state.invalidate()` while it is still moving (maath `easing.*` returns `true` while moving) and stop when settled, so the idle app costs ~0% GPU.
+- Card/scene `useFrame` callbacks use a negative priority so transforms update before drei `<Html>` reads them. Never use a positive priority (it disables automatic rendering).
+- Create geometries/materials in `useMemo` and dispose them in `useEffect` cleanup.
+- Read all parameters from `src/contracts/tokens.ts`.
+- Do not use `MeshTransmissionMaterial` per card (one extra scene render each); use `MeshPhysicalMaterial` with `transmission`, which shares a single transmission pass.

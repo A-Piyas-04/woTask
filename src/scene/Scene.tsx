@@ -1,5 +1,5 @@
 import { Canvas } from '@react-three/fiber';
-import { Suspense } from 'react';
+import { Suspense, useRef } from 'react';
 import * as THREE from 'three';
 import type { QualityTier } from '../contracts/events';
 import type { Task } from '../contracts/task';
@@ -24,6 +24,7 @@ export interface SceneProps {
 /** The single persistent canvas. Renders only on demand, so an idle window costs ~0% CPU/GPU. */
 export function Scene({ tasks, selectedId, accent, quality, reducedMotion, onSelect, onOpen, onToggle }: SceneProps) {
   const q = QUALITY[quality];
+  const labelLayer = useRef<HTMLDivElement>(null);
   return (
     <div className="scene-root">
       <Canvas
@@ -47,6 +48,7 @@ export function Scene({ tasks, selectedId, accent, quality, reducedMotion, onSel
             selectedId={selectedId}
             accent={accent}
             reducedMotion={reducedMotion}
+            labelLayer={labelLayer}
             onSelect={onSelect}
             onOpen={onOpen}
             onToggle={onToggle}
@@ -54,6 +56,7 @@ export function Scene({ tasks, selectedId, accent, quality, reducedMotion, onSel
           <Composer quality={quality} />
         </Suspense>
       </Canvas>
+      <div ref={labelLayer} className="label-layer" />
     </div>
   );
 }

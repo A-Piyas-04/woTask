@@ -1,0 +1,10 @@
+---
+description: DOM layer conventions
+globs: src/ui/**
+alwaysApply: false
+---
+
+- The DOM owns all text and input. Containers over the canvas use `pointer-events: none`; only real controls get `auto`.
+- Every action must be keyboard-reachable; map new actions into `AppCommandId` (`src/contracts/events.ts`) and `runCommand` in `shortcuts.ts` so the command palette picks them up.
+- Ignore key handling while `e.isComposing` or `keyCode === 229` (IME / Bangla input).
+- Keep visible focus rings (`:focus-visible`) and honour `prefers-reduced-motion`.

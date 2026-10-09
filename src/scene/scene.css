@@ -5,6 +5,13 @@
   isolation: isolate;
 }
 
+.label-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
 .card-label-host {
   pointer-events: none;
   user-select: none;

@@ -58,9 +58,9 @@ export const MATERIALS = {
     attenuationColor: '#ff9aa4',
   },
   glassCompleted: {
-    color: '#9aa3b8',
-    roughness: 0.55,
-    transmission: 0.75,
+    color: '#7a8296',
+    roughness: 0.6,
+    transmission: 1,
   },
   glassSelected: {
     emissiveIntensity: 0.18,

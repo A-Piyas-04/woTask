@@ -1,7 +1,7 @@
 import { Html } from '@react-three/drei';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { easing } from 'maath';
-import { memo, useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef, type RefObject } from 'react';
 import * as THREE from 'three';
 import type { Task } from '../../contracts/task';
 import { LAYOUT, MATERIALS, MOTION, PALETTE } from '../../contracts/tokens';
@@ -16,6 +16,8 @@ export interface TaskCardProps {
   selected: boolean;
   accent: string;
   reducedMotion: boolean;
+  /** Stable DOM container for labels; drei's default target changes once events connect. */
+  labelLayer: RefObject<HTMLDivElement | null>;
   geometry: THREE.BufferGeometry;
   accentGeometry: THREE.BufferGeometry;
   onSelect(id: string): void;
@@ -25,6 +27,8 @@ export interface TaskCardProps {
 
 const { height: H, depth: D } = LAYOUT.card;
 const CHECK_ZONE = 0.75;
+/** Negative so card transforms update before drei <Html> reads them (avoids a one-frame label lag). */
+export const FRAME_PRIORITY_BEFORE_HTML = -1;
 const BLACK = new THREE.Color('#000000');
 
 export const TaskCard = memo(function TaskCard(props: TaskCardProps) {
@@ -126,7 +130,7 @@ export const TaskCard = memo(function TaskCard(props: TaskCardProps) {
     moving = easing.damp(accentMat, 'emissiveIntensity', glow, MOTION.color.smoothTime * k, dt) || moving;
 
     if (moving) state.invalidate();
-  });
+  }, FRAME_PRIORITY_BEFORE_HTML);
 
   const onPointerOver = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
@@ -182,6 +186,7 @@ export const TaskCard = memo(function TaskCard(props: TaskCardProps) {
       <mesh geometry={accentGeometry} material={accentMat} position={[-width / 2 + LAYOUT.accentBar.inset, 0, D * 0.25]} />
       <Html
         transform
+        portal={props.labelLayer as RefObject<HTMLElement>}
         distanceFactor={400 / px}
         position={[0, 0, D / 2 + 0.004]}
         pointerEvents="none"

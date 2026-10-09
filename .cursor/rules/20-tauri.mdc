@@ -1,0 +1,11 @@
+---
+description: Tauri / Rust conventions
+globs: src-tauri/**
+alwaysApply: false
+---
+
+- New command: add it in `commands.rs`, register it in `generate_handler!` in `main.rs`, add a typed wrapper in `src/data/repository.ts` that validates with zod.
+- Commands return `Result<T, String>`; never panic on user input.
+- Structs crossing IPC use `#[serde(rename_all = "camelCase")]` to match `src/contracts/task.ts`.
+- Schema changes are new entries appended to `MIGRATIONS` in `db.rs`; never edit an existing migration.
+- Data lives next to the exe (`woTask-data/`) when writable, else `%APPDATA%\woTask` (`paths.rs`).

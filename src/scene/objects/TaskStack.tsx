@@ -1,17 +1,18 @@
 import { useFrame, useThree } from '@react-three/fiber';
 import { easing } from 'maath';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, type RefObject } from 'react';
 import type * as THREE from 'three';
 import type { Task } from '../../contracts/task';
 import { LAYOUT, MOTION } from '../../contracts/tokens';
 import { createAccentGeometry, createCardGeometry } from '../materials/materials';
-import { TaskCard } from './TaskCard';
+import { FRAME_PRIORITY_BEFORE_HTML, TaskCard } from './TaskCard';
 
 export interface TaskStackProps {
   tasks: Task[];
   selectedId: string | null;
   accent: string;
   reducedMotion: boolean;
+  labelLayer: RefObject<HTMLDivElement | null>;
   onSelect(id: string): void;
   onOpen(id: string): void;
   onToggle(id: string): void;
@@ -19,7 +20,7 @@ export interface TaskStackProps {
 
 const STEP = LAYOUT.card.height + LAYOUT.gap;
 
-export function TaskStack({ tasks, selectedId, accent, reducedMotion, onSelect, onOpen, onToggle }: TaskStackProps) {
+export function TaskStack({ tasks, selectedId, accent, reducedMotion, labelLayer, onSelect, onOpen, onToggle }: TaskStackProps) {
   const viewport = useThree((s) => s.viewport);
   const gl = useThree((s) => s.gl);
   const invalidate = useThree((s) => s.invalidate);
@@ -69,7 +70,7 @@ export function TaskStack({ tasks, selectedId, accent, reducedMotion, onSelect, 
     if (!g) return;
     const k = reducedMotion ? 0.0001 : 1;
     if (easing.damp(g.position, 'y', scroll.current.target, MOTION.scroll.smoothTime * k, Math.min(delta, 1 / 20))) state.invalidate();
-  });
+  }, FRAME_PRIORITY_BEFORE_HTML - 1);
 
   return (
     <group ref={group}>
@@ -83,6 +84,7 @@ export function TaskStack({ tasks, selectedId, accent, reducedMotion, onSelect, 
           selected={task.id === selectedId}
           accent={accent}
           reducedMotion={reducedMotion}
+          labelLayer={labelLayer}
           geometry={geometry}
           accentGeometry={accentGeometry}
           onSelect={onSelect}

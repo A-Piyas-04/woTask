@@ -118,6 +118,7 @@ export function CommandPalette() {
       <div className="palette" role="dialog" aria-label="Command palette" onMouseDown={(e) => e.stopPropagation()}>
         <input
           ref={inputRef}
+          autoFocus
           className="palette-input"
           value={query}
           onChange={(e) => {

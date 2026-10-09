@@ -1,0 +1,23 @@
+---
+description: The app must work with networking fully disabled
+alwaysApply: true
+---
+
+# Offline only
+
+The shipped exe has no network. Anything fetched at runtime fails silently (black scene, missing font).
+
+Bad:
+```tsx
+<Environment preset="city" />
+<Text font="https://fonts.gstatic.com/..." />
+@import url('https://fonts.googleapis.com/...');
+```
+
+Good:
+```tsx
+<Environment resolution={256} frames={1}>{/* <Lightformer /> meshes */}</Environment>
+// Text lives in the DOM with system fonts (Segoe UI, Nirmala UI for Bangla)
+```
+
+Run `npm run audit:offline` before declaring done.

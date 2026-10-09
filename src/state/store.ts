@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import type { QualityTier } from '../contracts/events';
-import type { TaskRepository } from '../contracts/repository';
+import type { DataRepository } from '../contracts/repository';
 import { PALETTE } from '../contracts/tokens';
-import type { Priority, Region, RegionKind, RegionPatch, Task, TaskPatch } from '../contracts/task';
+import type { Priority, Space, SpaceKind, SpacePatch, Task, TaskPatch } from '../contracts/task';
 import { BROWSER_STORAGE_KEY, createRepository } from '../data/repository';
 import { FIXTURES } from '../mocks/tasks';
 
@@ -19,15 +19,15 @@ interface UndoEntry {
   run: () => Promise<void>;
 }
 
-/** Inline explanation shown next to the region it concerns (e.g. "cannot delete the last region"). */
-export interface RegionNotice {
-  regionId: string;
+/** Inline explanation shown next to the space it concerns (e.g. "cannot delete the last space"). */
+export interface SpaceNotice {
+  spaceId: string;
   message: string;
 }
 
-export interface NewRegion {
+export interface NewSpace {
   name: string;
-  kind: RegionKind;
+  kind: SpaceKind;
   description?: string | null;
   colorIndex?: number;
   targetDate?: number | null;
@@ -39,17 +39,17 @@ export interface AppState {
   repoKind: 'tauri' | 'browser';
   dataPath: string;
 
-  /** All regions, including archived ones. Use `visibleRegions()` for display. */
-  regions: Region[];
+  /** All spaces, including archived ones. Use `visibleSpaces()` for display. */
+  spaces: Space[];
   tasks: Task[];
-  activeRegionId: string | null;
+  activeSpaceId: string | null;
   selectedId: string | null;
   editingId: string | null;
-  /** Region whose settings panel is open. */
-  editingRegionId: string | null;
-  /** The region panel is open in create mode. */
-  creatingRegion: boolean;
-  regionNotice: RegionNotice | null;
+  /** Space whose settings panel is open. */
+  editingSpaceId: string | null;
+  /** The space panel is open in create mode. */
+  creatingSpace: boolean;
+  spaceNotice: SpaceNotice | null;
   paletteOpen: boolean;
   settingsOpen: boolean;
   shortcutsOpen: boolean;
@@ -61,8 +61,8 @@ export interface AppState {
   firstRun: boolean;
   /** Incremented to ask the task input to take focus. */
   inputFocusToken: number;
-  /** Bumped whenever a region is chosen, so the camera flies to it even if it was already active. */
-  regionFocusToken: number;
+  /** Bumped whenever a space is chosen, so the camera flies to it even if it was already active. */
+  spaceFocusToken: number;
   toasts: Toast[];
   undoStack: UndoEntry[];
 
@@ -73,21 +73,21 @@ export interface AppState {
   deleteTask(id: string): Promise<void>;
   moveTask(id: string, direction: -1 | 1): Promise<void>;
   cyclePriority(id: string): Promise<void>;
-  createRegion(input: NewRegion): Promise<string | null>;
-  updateRegion(id: string, patch: RegionPatch): Promise<void>;
-  archiveRegion(id: string): Promise<void>;
-  unarchiveRegion(id: string): Promise<void>;
-  deleteRegion(id: string): Promise<void>;
+  createSpace(input: NewSpace): Promise<string | null>;
+  updateSpace(id: string, patch: SpacePatch): Promise<void>;
+  archiveSpace(id: string): Promise<void>;
+  unarchiveSpace(id: string): Promise<void>;
+  deleteSpace(id: string): Promise<void>;
   undo(): Promise<void>;
 
   select(id: string | null): void;
   selectRelative(delta: -1 | 1): void;
-  setActiveRegion(id: string): void;
-  cycleRegion(delta: -1 | 1): void;
+  setActiveSpace(id: string): void;
+  cycleSpace(delta: -1 | 1): void;
   openEditor(id: string | null): void;
-  openRegionEditor(id: string | null): void;
-  setCreatingRegion(open: boolean): void;
-  clearRegionNotice(): void;
+  openSpaceEditor(id: string | null): void;
+  setCreatingSpace(open: boolean): void;
+  clearSpaceNotice(): void;
   setPaletteOpen(open: boolean): void;
   setSettingsOpen(open: boolean): void;
   setShortcutsOpen(open: boolean): void;
@@ -107,7 +107,7 @@ const AMBIENT_KEY = 'wotask:ambientMotion';
 const FIRST_RUN_KEY = 'wotask:firstRunSeen';
 const NOTICE_MS = 6000;
 
-let repo: TaskRepository = createRepository();
+let repo: DataRepository = createRepository();
 let toastSeq = 1;
 let noticeTimer: number | undefined;
 
@@ -116,29 +116,29 @@ const newId = (): string =>
     ? crypto.randomUUID()
     : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
-const KIND_ORDER: Record<RegionKind, number> = { project: 0, goal: 1, category: 2 };
+const KIND_ORDER: Record<SpaceKind, number> = { project: 0, goal: 1, category: 2 };
 
-/** Non-archived regions in display order: grouped by kind, then by position. Drives sidebar, shortcuts and layout. */
-export function visibleRegions(regions: Region[]): Region[] {
-  return regions
+/** Non-archived spaces in display order: grouped by kind, then by position. Drives sidebar, shortcuts and layout. */
+export function visibleSpaces(spaces: Space[]): Space[] {
+  return spaces
     .filter((g) => g.archivedAt === null)
     .sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || a.position - b.position || a.createdAt - b.createdAt);
 }
 
-/** Lowest palette slot not used by a visible region; cycles once all are taken. */
-export function nextColorIndex(regions: Region[]): number {
-  const n = PALETTE.regionHues.length;
-  const used = new Set(regions.filter((g) => g.archivedAt === null).map((g) => g.colorIndex));
+/** Lowest palette slot not used by a visible space; cycles once all are taken. */
+export function nextColorIndex(spaces: Space[]): number {
+  const n = PALETTE.spaceHues.length;
+  const used = new Set(spaces.filter((g) => g.archivedAt === null).map((g) => g.colorIndex));
   for (let i = 0; i < n; i++) if (!used.has(i)) return i;
-  return regions.length % n;
+  return spaces.length % n;
 }
 
 /** Active tasks by position, then completed tasks most-recent first. */
-export function orderTasks(tasks: Task[], regionId: string | null, showCompleted: boolean): Task[] {
-  const inRegion = tasks.filter((t) => t.regionId === regionId);
-  const active = inRegion.filter((t) => t.completedAt === null).sort((a, b) => a.position - b.position || a.createdAt - b.createdAt);
+export function orderTasks(tasks: Task[], spaceId: string | null, showCompleted: boolean): Task[] {
+  const inSpace = tasks.filter((t) => t.spaceId === spaceId);
+  const active = inSpace.filter((t) => t.completedAt === null).sort((a, b) => a.position - b.position || a.createdAt - b.createdAt);
   if (!showCompleted) return active;
-  const done = inRegion.filter((t) => t.completedAt !== null).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
+  const done = inSpace.filter((t) => t.completedAt !== null).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
   return [...active, ...done];
 }
 
@@ -195,11 +195,11 @@ export const useStore = create<AppState>()((set, get) => {
    * `inverse` (if given) is pushed onto the undo stack after a successful persist.
    */
   const commit = async (
-    next: Partial<Pick<AppState, 'tasks' | 'regions'>>,
+    next: Partial<Pick<AppState, 'tasks' | 'spaces'>>,
     persist: () => Promise<unknown>,
     undo?: UndoEntry,
   ): Promise<boolean> => {
-    const prev = { tasks: get().tasks, regions: get().regions };
+    const prev = { tasks: get().tasks, spaces: get().spaces };
     set(next);
     try {
       await persist();
@@ -216,54 +216,54 @@ export const useStore = create<AppState>()((set, get) => {
     await commit({ tasks: [...get().tasks.filter((t) => t.id !== task.id), task] }, () => repo.saveTask(task));
   };
 
-  const regionOrder = (regionId: string): Task[] => orderTasks(get().tasks, regionId, true);
+  const spaceOrder = (spaceId: string): Task[] => orderTasks(get().tasks, spaceId, true);
 
-  const visible = (): Task[] => orderTasks(get().tasks, get().activeRegionId, get().showCompleted);
+  const visible = (): Task[] => orderTasks(get().tasks, get().activeSpaceId, get().showCompleted);
 
-  const notice = (regionId: string, message: string) => {
+  const notice = (spaceId: string, message: string) => {
     window.clearTimeout(noticeTimer);
-    set({ regionNotice: { regionId, message } });
-    noticeTimer = window.setTimeout(() => get().clearRegionNotice(), NOTICE_MS);
+    set({ spaceNotice: { spaceId, message } });
+    noticeTimer = window.setTimeout(() => get().clearSpaceNotice(), NOTICE_MS);
   };
 
-  /** The app always keeps at least one visible region. Returns false (and explains) when `id` is the last one. */
+  /** The app always keeps at least one visible space. Returns false (and explains) when `id` is the last one. */
   const guardLast = (id: string, verb: 'delete' | 'archive'): boolean => {
-    const region = get().regions.find((g) => g.id === id);
-    if (!region) return false;
-    const shown = visibleRegions(get().regions);
-    const isLastShown = region.archivedAt === null && shown.length <= 1;
-    if (get().regions.length <= 1 || isLastShown) {
-      notice(id, `Can't ${verb} “${region.name}”: woTask always needs at least one region. Create another region first.`);
+    const space = get().spaces.find((g) => g.id === id);
+    if (!space) return false;
+    const shown = visibleSpaces(get().spaces);
+    const isLastShown = space.archivedAt === null && shown.length <= 1;
+    if (get().spaces.length <= 1 || isLastShown) {
+      notice(id, `Can't ${verb} “${space.name}”: woTask always needs at least one space. Create another space first.`);
       return false;
     }
     return true;
   };
 
-  const putRegion = async (prev: Region, next: Region, label: string) => {
-    await commit({ regions: get().regions.map((g) => (g.id === prev.id ? next : g)) }, () => repo.updateRegion(next), {
+  const putSpace = async (prev: Space, next: Space, label: string) => {
+    await commit({ spaces: get().spaces.map((g) => (g.id === prev.id ? next : g)) }, () => repo.updateSpace(next), {
       label,
       run: async () => {
-        await commit({ regions: get().regions.map((g) => (g.id === prev.id ? prev : g)) }, () => repo.updateRegion(prev));
+        await commit({ spaces: get().spaces.map((g) => (g.id === prev.id ? prev : g)) }, () => repo.updateSpace(prev));
       },
     });
   };
 
   const fallbackActive = (excluding: string): string | null =>
-    visibleRegions(get().regions).find((g) => g.id !== excluding)?.id ?? null;
+    visibleSpaces(get().spaces).find((g) => g.id !== excluding)?.id ?? null;
 
   return {
     ready: false,
     loadError: null,
     repoKind: repo.kind,
     dataPath: '',
-    regions: [],
+    spaces: [],
     tasks: [],
-    activeRegionId: null,
+    activeSpaceId: null,
     selectedId: null,
     editingId: null,
-    editingRegionId: null,
-    creatingRegion: false,
-    regionNotice: null,
+    editingSpaceId: null,
+    creatingSpace: false,
+    spaceNotice: null,
     paletteOpen: false,
     settingsOpen: false,
     shortcutsOpen: false,
@@ -272,7 +272,7 @@ export const useStore = create<AppState>()((set, get) => {
     ambientMotion: readPref(AMBIENT_KEY, ['true', 'false'], 'true') === 'true',
     firstRun: readPref(FIRST_RUN_KEY, ['true', 'false'], 'false') !== 'true',
     inputFocusToken: 0,
-    regionFocusToken: 0,
+    spaceFocusToken: 0,
     toasts: [],
     undoStack: [],
 
@@ -284,21 +284,21 @@ export const useStore = create<AppState>()((set, get) => {
           localStorage.removeItem(key);
           repo = createRepository(key);
           const data = FIXTURES[fixture](Date.now());
-          if (data.regions.length) await repo.seed(data.regions, data.tasks);
+          if (data.spaces.length) await repo.seed(data.spaces, data.tasks);
         } else {
           repo = createRepository();
-          if (import.meta.env.DEV && (await repo.getRegions()).length === 0) {
+          if (import.meta.env.DEV && (await repo.getSpaces()).length === 0) {
             const data = FIXTURES.demo(Date.now());
-            await repo.seed(data.regions, data.tasks);
+            await repo.seed(data.spaces, data.tasks);
           }
         }
-        const [regions, tasks, dataPath] = await Promise.all([repo.getRegions(), repo.getTasks(), repo.dataPath()]);
+        const [spaces, tasks, dataPath] = await Promise.all([repo.getSpaces(), repo.getTasks(), repo.dataPath()]);
         set({
-          regions,
+          spaces,
           tasks,
           dataPath,
           repoKind: repo.kind,
-          activeRegionId: visibleRegions(regions)[0]?.id ?? regions[0]?.id ?? null,
+          activeSpaceId: visibleSpaces(spaces)[0]?.id ?? spaces[0]?.id ?? null,
           ready: true,
           loadError: null,
         });
@@ -309,14 +309,14 @@ export const useStore = create<AppState>()((set, get) => {
 
     async addTask(raw) {
       const { title, priority, tags } = parseQuickAdd(raw);
-      const regionId = get().activeRegionId;
-      if (!title || !regionId) return;
+      const spaceId = get().activeSpaceId;
+      if (!title || !spaceId) return;
       const now = Date.now();
-      const siblings = get().tasks.filter((t) => t.regionId === regionId);
+      const siblings = get().tasks.filter((t) => t.spaceId === spaceId);
       const position = siblings.length ? Math.min(...siblings.map((t) => t.position)) - 1 : 0;
       const task: Task = {
         id: newId(),
-        regionId,
+        spaceId,
         title: title.slice(0, 500),
         notes: '',
         priority,
@@ -380,7 +380,7 @@ export const useStore = create<AppState>()((set, get) => {
     async moveTask(id, direction) {
       const task = get().tasks.find((t) => t.id === id);
       if (!task || task.completedAt !== null) return;
-      const before = regionOrder(task.regionId);
+      const before = spaceOrder(task.spaceId);
       const active = before.filter((t) => t.completedAt === null);
       const i = active.findIndex((t) => t.id === id);
       const j = i + direction;
@@ -394,10 +394,10 @@ export const useStore = create<AppState>()((set, get) => {
         const pos = new Map(order.map((tid, k) => [tid, k]));
         return get().tasks.map((t) => (pos.has(t.id) ? { ...t, position: pos.get(t.id) ?? t.position } : t));
       };
-      await commit({ tasks: apply(ids) }, () => repo.reorderTasks(task.regionId, ids), {
+      await commit({ tasks: apply(ids) }, () => repo.reorderTasks(task.spaceId, ids), {
         label: 'Move task',
         run: async () => {
-          await commit({ tasks: apply(prevIds) }, () => repo.reorderTasks(task.regionId, prevIds));
+          await commit({ tasks: apply(prevIds) }, () => repo.reorderTasks(task.spaceId, prevIds));
         },
       });
     },
@@ -408,74 +408,74 @@ export const useStore = create<AppState>()((set, get) => {
       await get().updateTask(id, { priority: ((t.priority + 1) % 4) as Priority });
     },
 
-    async createRegion(input) {
+    async createSpace(input) {
       const name = input.name.trim().slice(0, 80);
       if (!name) return null;
-      const regions = get().regions;
-      const region: Region = {
+      const spaces = get().spaces;
+      const space: Space = {
         id: newId(),
         name,
         kind: input.kind,
         description: input.description?.trim().slice(0, 200) || null,
-        colorIndex: input.colorIndex ?? nextColorIndex(regions),
-        position: regions.length ? Math.max(...regions.map((g) => g.position)) + 1 : 0,
+        colorIndex: input.colorIndex ?? nextColorIndex(spaces),
+        position: spaces.length ? Math.max(...spaces.map((g) => g.position)) + 1 : 0,
         targetDate: input.kind === 'goal' ? (input.targetDate ?? null) : null,
         createdAt: Date.now(),
         archivedAt: null,
       };
-      const ok = await commit({ regions: [...regions, region] }, () => repo.createRegion(region), {
-        label: 'Create region',
+      const ok = await commit({ spaces: [...spaces, space] }, () => repo.createSpace(space), {
+        label: 'Create space',
         run: async () => {
-          await commit({ regions: get().regions.filter((g) => g.id !== region.id) }, () => repo.deleteRegion(region.id));
-          if (get().activeRegionId === region.id) set({ activeRegionId: fallbackActive(region.id) });
+          await commit({ spaces: get().spaces.filter((g) => g.id !== space.id) }, () => repo.deleteSpace(space.id));
+          if (get().activeSpaceId === space.id) set({ activeSpaceId: fallbackActive(space.id) });
         },
       });
       if (!ok) return null;
-      set({ activeRegionId: region.id, selectedId: null });
-      return region.id;
+      set({ activeSpaceId: space.id, selectedId: null });
+      return space.id;
     },
 
-    async updateRegion(id, patch) {
-      const prev = get().regions.find((g) => g.id === id);
+    async updateSpace(id, patch) {
+      const prev = get().spaces.find((g) => g.id === id);
       if (!prev) return;
-      const next: Region = { ...prev, ...patch };
+      const next: Space = { ...prev, ...patch };
       next.name = next.name.trim().slice(0, 80);
       if (!next.name) return;
       if (next.kind !== 'goal') next.targetDate = null;
-      await putRegion(prev, next, 'Edit region');
+      await putSpace(prev, next, 'Edit space');
     },
 
-    async archiveRegion(id) {
-      const prev = get().regions.find((g) => g.id === id);
+    async archiveSpace(id) {
+      const prev = get().spaces.find((g) => g.id === id);
       if (!prev || prev.archivedAt !== null || !guardLast(id, 'archive')) return;
-      if (get().activeRegionId === id) set({ activeRegionId: fallbackActive(id), selectedId: null, editingId: null });
-      await putRegion(prev, { ...prev, archivedAt: Date.now() }, 'Archive region');
+      if (get().activeSpaceId === id) set({ activeSpaceId: fallbackActive(id), selectedId: null, editingId: null });
+      await putSpace(prev, { ...prev, archivedAt: Date.now() }, 'Archive space');
     },
 
-    async unarchiveRegion(id) {
-      const prev = get().regions.find((g) => g.id === id);
+    async unarchiveSpace(id) {
+      const prev = get().spaces.find((g) => g.id === id);
       if (!prev || prev.archivedAt === null) return;
-      await putRegion(prev, { ...prev, archivedAt: null }, 'Restore region');
-      set({ activeRegionId: id, selectedId: null });
+      await putSpace(prev, { ...prev, archivedAt: null }, 'Restore space');
+      set({ activeSpaceId: id, selectedId: null });
     },
 
-    async deleteRegion(id) {
-      const region = get().regions.find((g) => g.id === id);
-      if (!region || !guardLast(id, 'delete')) return;
-      const removedTasks = get().tasks.filter((t) => t.regionId === id);
-      const remaining = get().regions.filter((g) => g.id !== id);
-      if (get().activeRegionId === id) set({ activeRegionId: fallbackActive(id), selectedId: null, editingId: null });
-      if (get().editingRegionId === id) set({ editingRegionId: null });
+    async deleteSpace(id) {
+      const space = get().spaces.find((g) => g.id === id);
+      if (!space || !guardLast(id, 'delete')) return;
+      const removedTasks = get().tasks.filter((t) => t.spaceId === id);
+      const remaining = get().spaces.filter((g) => g.id !== id);
+      if (get().activeSpaceId === id) set({ activeSpaceId: fallbackActive(id), selectedId: null, editingId: null });
+      if (get().editingSpaceId === id) set({ editingSpaceId: null });
       const ok = await commit(
-        { regions: remaining, tasks: get().tasks.filter((t) => t.regionId !== id) },
-        () => repo.deleteRegion(id),
+        { spaces: remaining, tasks: get().tasks.filter((t) => t.spaceId !== id) },
+        () => repo.deleteSpace(id),
         {
-          label: 'Delete region',
+          label: 'Delete space',
           run: async () => {
             await commit(
-              { regions: [...get().regions, region].sort((a, b) => a.position - b.position), tasks: [...get().tasks, ...removedTasks] },
+              { spaces: [...get().spaces, space].sort((a, b) => a.position - b.position), tasks: [...get().tasks, ...removedTasks] },
               async () => {
-                await repo.createRegion(region);
+                await repo.createSpace(space);
                 for (const t of removedTasks) await repo.saveTask(t);
               },
             );
@@ -483,7 +483,7 @@ export const useStore = create<AppState>()((set, get) => {
         },
       );
       if (ok) {
-        get().pushToast({ kind: 'info', message: `Deleted region “${region.name}”`, actionLabel: 'Undo', action: () => void get().undo() });
+        get().pushToast({ kind: 'info', message: `Deleted space “${space.name}”`, actionLabel: 'Undo', action: () => void get().undo() });
       }
     },
 
@@ -510,35 +510,35 @@ export const useStore = create<AppState>()((set, get) => {
       set({ selectedId: order[next].id });
     },
 
-    setActiveRegion(id) {
-      // Choosing the region that is already active re-centres the camera on it.
-      if (id === get().activeRegionId) {
-        set((s) => ({ selectedId: null, regionFocusToken: s.regionFocusToken + 1 }));
+    setActiveSpace(id) {
+      // Choosing the space that is already active re-centres the camera on it.
+      if (id === get().activeSpaceId) {
+        set((s) => ({ selectedId: null, spaceFocusToken: s.spaceFocusToken + 1 }));
         return;
       }
-      set((s) => ({ activeRegionId: id, selectedId: null, editingId: null, regionFocusToken: s.regionFocusToken + 1 }));
+      set((s) => ({ activeSpaceId: id, selectedId: null, editingId: null, spaceFocusToken: s.spaceFocusToken + 1 }));
     },
 
-    cycleRegion(delta) {
-      const shown = visibleRegions(get().regions);
+    cycleSpace(delta) {
+      const shown = visibleSpaces(get().spaces);
       if (shown.length === 0) return;
-      const i = shown.findIndex((g) => g.id === get().activeRegionId);
+      const i = shown.findIndex((g) => g.id === get().activeSpaceId);
       const next = (i + delta + shown.length) % shown.length;
-      get().setActiveRegion(shown[next].id);
+      get().setActiveSpace(shown[next].id);
     },
 
     openEditor(id) {
-      set({ editingId: id, selectedId: id ?? get().selectedId, editingRegionId: id ? null : get().editingRegionId });
+      set({ editingId: id, selectedId: id ?? get().selectedId, editingSpaceId: id ? null : get().editingSpaceId });
     },
-    openRegionEditor(id) {
-      set({ editingRegionId: id, creatingRegion: false, editingId: id ? null : get().editingId });
+    openSpaceEditor(id) {
+      set({ editingSpaceId: id, creatingSpace: false, editingId: id ? null : get().editingId });
     },
-    setCreatingRegion(open) {
-      set({ creatingRegion: open, editingRegionId: open ? null : get().editingRegionId, editingId: open ? null : get().editingId });
+    setCreatingSpace(open) {
+      set({ creatingSpace: open, editingSpaceId: open ? null : get().editingSpaceId, editingId: open ? null : get().editingId });
     },
-    clearRegionNotice() {
+    clearSpaceNotice() {
       window.clearTimeout(noticeTimer);
-      set({ regionNotice: null });
+      set({ spaceNotice: null });
     },
     setPaletteOpen(open) {
       set({ paletteOpen: open });

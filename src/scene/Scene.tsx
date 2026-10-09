@@ -2,7 +2,7 @@ import { Canvas } from '@react-three/fiber';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import type { QualityTier } from '../contracts/events';
-import type { Region, Task } from '../contracts/task';
+import type { Space, Task } from '../contracts/task';
 import { CAMERA, CONSTELLATION, EFFECTS, PALETTE, PARALLAX, QUALITY } from '../contracts/tokens';
 import { CameraRig, type CameraFocus } from './CameraRig';
 import { Composer } from './effects/Composer';
@@ -10,22 +10,22 @@ import { pointerState, type PositionRegistry } from './interaction';
 import { LabelCuller, useLabelRegistry } from './labels';
 import { backgroundScale, computeLayout, maxZoomDistance } from './layout';
 import { StudioRig } from './lighting/StudioRig';
-import { regionRamp } from './materials/materials';
+import { spaceRamp } from './materials/materials';
 import { ClusterFrame } from './objects/ClusterFrame';
-import { Constellation, type RegionStats } from './objects/Constellation';
+import { Constellation, type SpaceStats } from './objects/Constellation';
 import { ParallaxBackground } from './objects/ParallaxBackground';
 import { TaskOrb } from './objects/TaskOrb';
 import './scene.css';
 
 export interface SceneProps {
-  regions: Region[];
-  /** Ordered tasks per region (already filtered for visibility). */
-  tasksByRegion: Record<string, Task[]>;
-  /** Open/done counts per region over all tasks, independent of the show-completed filter. */
-  regionStats: Record<string, RegionStats>;
-  activeRegionId: string | null;
-  /** Changes whenever a region is chosen; re-centres the camera even on the already-active region. */
-  regionFocusToken: number;
+  spaces: Space[];
+  /** Ordered tasks per space (already filtered for visibility). */
+  tasksBySpace: Record<string, Task[]>;
+  /** Open/done counts per space over all tasks, independent of the show-completed filter. */
+  spaceStats: Record<string, SpaceStats>;
+  activeSpaceId: string | null;
+  /** Changes whenever a space is chosen; re-centres the camera even on the already-active space. */
+  spaceFocusToken: number;
   selectedId: string | null;
   quality: QualityTier;
   ambient: boolean;
@@ -33,12 +33,12 @@ export interface SceneProps {
   /** Dev fixtures for visual tests: hide every DOM label so only WebGL pixels are captured. */
   hideLabels?: boolean;
   onSelect(id: string | null): void;
-  onSelectRegion(id: string): void;
+  onSelectSpace(id: string): void;
   onOpen(id: string): void;
   onToggle(id: string): void;
 }
 
-const EMPTY_STATS: RegionStats = { open: 0, done: 0 };
+const EMPTY_STATS: SpaceStats = { open: 0, done: 0 };
 
 function usePageActive(): boolean {
   const [active, setActive] = useState(() => document.visibilityState === 'visible' && document.hasFocus());
@@ -63,7 +63,7 @@ function usePageActive(): boolean {
  * focused and visible; otherwise it renders on demand, so a background window costs ~0% GPU.
  */
 export function Scene(props: SceneProps) {
-  const { regions, tasksByRegion, regionStats, activeRegionId, regionFocusToken, selectedId, quality, ambient, reducedMotion } = props;
+  const { spaces, tasksBySpace, spaceStats, activeSpaceId, spaceFocusToken, selectedId, quality, ambient, reducedMotion } = props;
   const q = QUALITY[quality];
   const labelLayer = useRef<HTMLDivElement>(null);
   const registry = useMemo<PositionRegistry>(() => new Map(), []);
@@ -71,23 +71,23 @@ export function Scene(props: SceneProps) {
   const pageActive = usePageActive();
   const animate = ambient && !reducedMotion && pageActive;
 
-  const layout = useMemo(() => computeLayout(regions, tasksByRegion), [regions, tasksByRegion]);
-  const activeRegion = regions.find((g) => g.id === activeRegionId);
-  const tint = activeRegion ? regionRamp(activeRegion.colorIndex).base : null;
+  const layout = useMemo(() => computeLayout(spaces, tasksBySpace), [spaces, tasksBySpace]);
+  const activeSpace = spaces.find((g) => g.id === activeSpaceId);
+  const tint = activeSpace ? spaceRamp(activeSpace.colorIndex).base : null;
 
   const focus = useMemo<CameraFocus | null>(() => {
     const sel = selectedId ? layout.byTaskId.get(selectedId) : undefined;
     if (sel) return { key: `task:${sel.task.id}`, x: sel.rest[0], y: sel.rest[1] };
-    const zone = layout.zones.find((z) => z.region.id === activeRegionId);
+    const zone = layout.zones.find((z) => z.space.id === activeSpaceId);
     if (!zone) return null;
     const ry = zone.radius / CONSTELLATION.ellipseX;
     return {
-      key: `region:${zone.region.id}:${regionFocusToken}`,
+      key: `space:${zone.space.id}:${spaceFocusToken}`,
       x: zone.center[0],
       y: zone.center[1],
       frame: { top: zone.center[1] + ry + CONSTELLATION.zoneLabelOffset, bottom: zone.center[1] - ry },
     };
-  }, [layout, selectedId, activeRegionId, regionFocusToken]);
+  }, [layout, selectedId, activeSpaceId, spaceFocusToken]);
 
   const bgCenter = useMemo<[number, number]>(
     () => [(layout.bounds.minX + layout.bounds.maxX) / 2, (layout.bounds.minY + layout.bounds.maxY) / 2],
@@ -127,16 +127,16 @@ export function Scene(props: SceneProps) {
           ))}
           {layout.zones.map((zone) => (
             <Constellation
-              key={zone.region.id}
+              key={zone.space.id}
               zone={zone}
-              ramp={regionRamp(zone.region.colorIndex)}
-              stats={regionStats[zone.region.id] ?? EMPTY_STATS}
-              active={zone.region.id === activeRegionId}
+              ramp={spaceRamp(zone.space.colorIndex)}
+              stats={spaceStats[zone.space.id] ?? EMPTY_STATS}
+              active={zone.space.id === activeSpaceId}
               ambient={animate}
               spacing={layout.zoneSpacing}
               registry={registry}
               labelLayer={labelLayer}
-              onSelectRegion={props.onSelectRegion}
+              onSelectSpace={props.onSelectSpace}
             />
           ))}
           {layout.zones.flatMap((zone) =>
@@ -145,11 +145,11 @@ export function Scene(props: SceneProps) {
                 key={orb.task.id}
                 orb={orb}
                 selected={orb.task.id === selectedId}
-                ramp={regionRamp(zone.region.colorIndex)}
+                ramp={spaceRamp(zone.space.colorIndex)}
                 ambient={animate}
                 reducedMotion={reducedMotion}
                 segments={q.sphereSegments}
-                labelEligible={zone.region.id === activeRegionId}
+                labelEligible={zone.space.id === activeSpaceId}
                 registry={registry}
                 labels={labels}
                 labelLayer={labelLayer}
@@ -159,7 +159,7 @@ export function Scene(props: SceneProps) {
               />
             )),
           )}
-          <LabelCuller registry={labels} activeRegionId={activeRegionId} />
+          <LabelCuller registry={labels} activeSpaceId={activeSpaceId} />
           <Composer quality={quality} />
         </Suspense>
       </Canvas>

@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 import type { AppCommandId } from '../contracts/events';
-import { useStore, visibleRegions } from '../state/store';
+import { useStore, visibleSpaces } from '../state/store';
 
-export const NEW_REGION_EVENT = 'wotask:new-region';
+export const NEW_SPACE_EVENT = 'wotask:new-space';
 
 export function runCommand(id: AppCommandId): void {
   const s = useStore.getState();
@@ -38,14 +38,14 @@ export function runCommand(id: AppCommandId): void {
     case 'selection.clear':
       s.select(null);
       return;
-    case 'region.next':
-      s.cycleRegion(1);
+    case 'space.next':
+      s.cycleSpace(1);
       return;
-    case 'region.prev':
-      s.cycleRegion(-1);
+    case 'space.prev':
+      s.cycleSpace(-1);
       return;
-    case 'region.new':
-      window.dispatchEvent(new Event(NEW_REGION_EVENT));
+    case 'space.new':
+      window.dispatchEvent(new Event(NEW_SPACE_EVENT));
       return;
     case 'history.undo':
       void s.undo();
@@ -73,8 +73,8 @@ function handleKey(e: KeyboardEvent): void {
   if (e.isComposing || e.keyCode === 229) return;
 
   const s = useStore.getState();
-  // First run: the onboarding card owns the keyboard until a region exists.
-  if (s.regions.length === 0) return;
+  // First run: the onboarding card owns the keyboard until a space exists.
+  if (s.spaces.length === 0) return;
   const ctrl = e.ctrlKey || e.metaKey;
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   const run = (id: AppCommandId) => {
@@ -98,8 +98,8 @@ function handleKey(e: KeyboardEvent): void {
       return;
     }
     if (s.editingId) return s.openEditor(null);
-    if (s.creatingRegion) return s.setCreatingRegion(false);
-    if (s.editingRegionId) return s.openRegionEditor(null);
+    if (s.creatingSpace) return s.setCreatingSpace(false);
+    if (s.editingSpaceId) return s.openSpaceEditor(null);
     return run('selection.clear');
   }
 
@@ -109,16 +109,16 @@ function handleKey(e: KeyboardEvent): void {
   // Let focused buttons handle their own activation keys.
   if (e.target instanceof HTMLButtonElement && (e.key === 'Enter' || e.key === ' ')) return;
 
-  if (ctrl && e.shiftKey && key === 'n') return run('region.new');
+  if (ctrl && e.shiftKey && key === 'n') return run('space.new');
   if (ctrl && key === 'z') return run('history.undo');
   if (ctrl && key === 'n') return run('task.new');
-  if (ctrl && e.key === 'ArrowRight') return run('region.next');
-  if (ctrl && e.key === 'ArrowLeft') return run('region.prev');
+  if (ctrl && e.key === 'ArrowRight') return run('space.next');
+  if (ctrl && e.key === 'ArrowLeft') return run('space.prev');
   if (ctrl && /^[1-9]$/.test(e.key)) {
-    const region = visibleRegions(s.regions)[Number(e.key) - 1];
-    if (region) {
+    const space = visibleSpaces(s.spaces)[Number(e.key) - 1];
+    if (space) {
       e.preventDefault();
-      s.setActiveRegion(region.id);
+      s.setActiveSpace(space.id);
     }
     return;
   }

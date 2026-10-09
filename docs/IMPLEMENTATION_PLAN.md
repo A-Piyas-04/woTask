@@ -115,7 +115,7 @@ task-manager/
 ├── src/
 │   ├── contracts/                 # OWNER: you — FROZEN, read-only to all agents
 │   │   ├── task.ts                #   Task, List, Tag, Priority + zod schemas
-│   │   ├── repository.ts          #   TaskRepository interface
+│   │   ├── repository.ts          #   DataRepository interface
 │   │   ├── tokens.ts              #   colors, easings, spacing, material params
 │   │   └── events.ts              #   UI event names and payloads
 │   │
@@ -456,7 +456,7 @@ Each track gets its own worktree via `/worktree`. Each prompt below should be ru
 
 **Deliverables**
 
-1. `TitleBar.tsx` — custom chrome with a drag region (`data-tauri-drag-region`) and window control buttons
+1. `TitleBar.tsx` — custom chrome with a drag space (`data-tauri-drag-region`) and window control buttons
 2. `TaskInput.tsx` — the capture field. Must support IME and Bangla input correctly.
 3. `CommandPalette.tsx` — `Ctrl+K`, fuzzy search, keyboard-driven
 4. `shortcuts.ts` — global keymap: new task, complete, delete, undo, switch list, focus search
@@ -668,7 +668,7 @@ Paste these into four Cursor agents at Wave 1 start. Run each through Plan Mode 
 
 **Track D**
 
-> Read `AGENTS.md` and `src/contracts/`. You own `src/ui/**`. Build the DOM layer that composites over the WebGL canvas: custom titlebar with drag region, task capture input with full IME and Bangla support, a `Ctrl+K` command palette, and a global keymap making every operation keyboard-reachable. All containers `pointer-events: none` with interactive children set to `auto` so the canvas still receives pointer events. Transparent backgrounds throughout. Honour `prefers-reduced-motion`.
+> Read `AGENTS.md` and `src/contracts/`. You own `src/ui/**`. Build the DOM layer that composites over the WebGL canvas: custom titlebar with drag space, task capture input with full IME and Bangla support, a `Ctrl+K` command palette, and a global keymap making every operation keyboard-reachable. All containers `pointer-events: none` with interactive children set to `auto` so the canvas still receives pointer events. Transparent backgrounds throughout. Honour `prefers-reduced-motion`.
 
 ---
 

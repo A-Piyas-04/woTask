@@ -2,7 +2,7 @@ import { Fragment } from 'react';
 import { COMMANDS, type CommandGroup } from '../contracts/events';
 import { useStore } from '../state/store';
 
-const GROUPS: CommandGroup[] = ['Navigation', 'Tasks', 'Regions', 'View'];
+const GROUPS: CommandGroup[] = ['Navigation', 'Tasks', 'Spaces', 'View'];
 
 /** Pointer gestures are not commands, so they are listed here rather than in `COMMANDS`. */
 const GESTURES: Record<CommandGroup, [keys: string, title: string][]> = {
@@ -16,9 +16,9 @@ const GESTURES: Record<CommandGroup, [keys: string, title: string][]> = {
     ['Click again', 'Complete / reopen'],
     ['Double-click', 'Edit details'],
   ],
-  Regions: [
-    ['Ctrl+1…9', 'Jump to region'],
-    ['Click hub', 'Make region active'],
+  Spaces: [
+    ['Ctrl+1…9', 'Jump to space'],
+    ['Click hub', 'Make space active'],
   ],
   View: [],
 };

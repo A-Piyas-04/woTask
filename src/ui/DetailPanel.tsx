@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PRIORITY_LABELS, type Priority, type Task } from '../contracts/task';
-import { useStore, visibleRegions } from '../state/store';
+import { useStore, visibleSpaces } from '../state/store';
 import { fromDateInput, toDateInput } from './dates';
 
 function Editor({ task }: { task: Task }) {
@@ -9,7 +9,7 @@ function Editor({ task }: { task: Task }) {
   const deleteTask = useStore((s) => s.deleteTask);
   const toggleComplete = useStore((s) => s.toggleComplete);
   const close = useStore((s) => s.openEditor);
-  const regions = useStore(useShallow((s) => visibleRegions(s.regions)));
+  const spaces = useStore(useShallow((s) => visibleSpaces(s.spaces)));
 
   const [title, setTitle] = useState(task.title);
   const [notes, setNotes] = useState(task.notes);
@@ -85,9 +85,9 @@ function Editor({ task }: { task: Task }) {
           <input type="date" value={toDateInput(task.dueAt)} onChange={(e) => void updateTask(task.id, { dueAt: fromDateInput(e.target.value) })} />
         </label>
         <label className="field">
-          <span>Region</span>
-          <select value={task.regionId} onChange={(e) => void updateTask(task.id, { regionId: e.target.value })}>
-            {regions.map((g) => (
+          <span>Space</span>
+          <select value={task.spaceId} onChange={(e) => void updateTask(task.id, { spaceId: e.target.value })}>
+            {spaces.map((g) => (
               <option key={g.id} value={g.id}>
                 {g.name}
               </option>

@@ -1,22 +1,22 @@
 import { useStore } from '../state/store';
-import { RegionForm } from './RegionForm';
+import { SpaceForm } from './SpaceForm';
 
-/** First run: the app has no regions until the user names one. Blocks everything else. */
+/** First run: the app has no spaces until the user names one. Blocks everything else. */
 export function Onboarding() {
-  const createRegion = useStore((s) => s.createRegion);
+  const createSpace = useStore((s) => s.createSpace);
   return (
     <div className="onboarding" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
       <div className="onboarding-card">
         <h1 id="onboarding-title">What are you working on?</h1>
         <p>
-          Each region is its own patch of space — a category, a project or a goal. Your tasks orbit inside it. You can add more
-          regions later.
+          A space is a category, a project or a goal — its own patch of the universe, with your tasks orbiting inside it. You
+          can add more spaces later.
         </p>
-        <RegionForm
+        <SpaceForm
           autoFocus
           initial={{ name: '', kind: 'project', description: '', colorIndex: 0, targetDate: null }}
-          submitLabel="Create region"
-          onSubmit={(d) => void createRegion({ ...d, description: d.description || null })}
+          submitLabel="Create space"
+          onSubmit={(d) => void createSpace({ ...d, description: d.description || null })}
         />
       </div>
     </div>

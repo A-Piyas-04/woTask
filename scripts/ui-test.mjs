@@ -125,17 +125,17 @@ await page.keyboard.press('Enter');
 await settle(300);
 check('palette closes on Enter', (await page.$('.palette')) === null);
 
-// Switch region by keyboard (display order: projects, goals, categories)
-const activeRegion = () => page.$eval('.region-row.is-active .region-name', (e) => e.textContent);
+// Switch space by keyboard (display order: projects, goals, categories)
+const activeSpace = () => page.$eval('.space-row.is-active .space-name', (e) => e.textContent);
 await page.keyboard.press('Control+2');
 await settle();
-check('Ctrl+2 switches region', (await activeRegion()) === 'Health', String(await activeRegion()));
+check('Ctrl+2 switches space', (await activeSpace()) === 'Health', String(await activeSpace()));
 await page.keyboard.press('Control+ArrowRight');
 await settle(300);
-check('Ctrl+Right cycles region', (await activeRegion()) === 'পড়াশোনা', String(await activeRegion()));
+check('Ctrl+Right cycles space', (await activeSpace()) === 'পড়াশোনা', String(await activeSpace()));
 await page.keyboard.press('Control+ArrowLeft');
 await settle(300);
-await page.screenshot({ path: join(outDir, '05-health-region.png') });
+await page.screenshot({ path: join(outDir, '05-health-space.png') });
 
 // Priority cycling and show/hide completed
 await page.keyboard.press('ArrowDown');
@@ -162,20 +162,20 @@ await page.keyboard.press('Escape');
 await settle(200);
 check('Esc closes shortcuts overlay', (await page.$('.shortcuts')) === null);
 
-// New region via Ctrl+Shift+N
+// New space via Ctrl+Shift+N
 await page.keyboard.press('Control+Shift+N');
 await settle(300);
 await page.keyboard.type('Garden');
 await page.keyboard.press('Enter');
 await settle(600);
-check('Ctrl+Shift+N creates region', (await activeRegion()) === 'Garden', String(await activeRegion()));
+check('Ctrl+Shift+N creates space', (await activeSpace()) === 'Garden', String(await activeSpace()));
 const placeholder = await page.$eval('.task-input input', (e) => e.getAttribute('placeholder'));
-check('quick capture targets active region', placeholder?.startsWith('Add a task to Garden') ?? false, String(placeholder));
+check('quick capture targets active space', placeholder?.startsWith('Add a task to Garden') ?? false, String(placeholder));
 
 // Persistence across reload
 await page.reload();
 await page.waitForSelector('.orb-title');
-await page.click('.region-row:has-text("Product Launch")');
+await page.click('.space-row:has-text("Product Launch")');
 await settle(1200);
 t = await titles();
 check('data persists across reload', t.includes('Ship the 3D task manager') && t.includes('নতুন কাজ যোগ করা হলো'));
@@ -187,23 +187,23 @@ check('settings opens', (await page.$('.settings')) !== null);
 await page.screenshot({ path: join(outDir, '06-settings.png') });
 await page.keyboard.press('Escape');
 
-// Guard: the last region cannot be deleted.
+// Guard: the last space cannot be deleted.
 await page.goto(`${url}?seed=states`);
-await page.waitForSelector('.region-row');
-await page.click('.region-row-wrap .region-action[title="Delete region"]', { force: true });
+await page.waitForSelector('.space-row');
+await page.click('.space-row-wrap .space-action[title="Delete space"]', { force: true });
 await settle(300);
 const notice = await page.$('.inline-notice');
-check('deleting the last region is blocked with an explanation', notice !== null && (await page.$$eval('.region-row', (e) => e.length)) === 1);
+check('deleting the last space is blocked with an explanation', notice !== null && (await page.$$eval('.space-row', (e) => e.length)) === 1);
 
 // Onboarding on an empty database.
 await page.goto(`${url}?seed=none`);
 await page.waitForSelector('.onboarding');
 check('onboarding card shown on first run', (await page.$('.app-body')) === null);
 await page.screenshot({ path: join(outDir, '07-onboarding.png') });
-await page.fill('.onboarding input[aria-label="Region name"]', 'Thesis');
+await page.fill('.onboarding input[aria-label="Space name"]', 'Thesis');
 await page.keyboard.press('Enter');
-await page.waitForSelector('.region-row', { timeout: 5000 }).catch(() => null);
-check('creating the first region dismisses onboarding', (await page.$('.onboarding')) === null && (await activeRegion()) === 'Thesis');
+await page.waitForSelector('.space-row', { timeout: 5000 }).catch(() => null);
+check('creating the first space dismisses onboarding', (await page.$('.onboarding')) === null && (await activeSpace()) === 'Thesis');
 
 check('no network requests', requests.length === 0, requests.slice(0, 3).join(', '));
 check('no console errors', errors.length === 0, errors.slice(0, 3).join(' | '));

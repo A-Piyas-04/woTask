@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { regionHue } from '../contracts/tokens';
+import { spaceHue } from '../contracts/tokens';
 import { useStore } from '../state/store';
 
 export function TaskInput() {
@@ -7,8 +7,8 @@ export function TaskInput() {
   const ref = useRef<HTMLInputElement>(null);
   const addTask = useStore((s) => s.addTask);
   const focusToken = useStore((s) => s.inputFocusToken);
-  const region = useStore((s) => s.regions.find((g) => g.id === s.activeRegionId));
-  const regionName = region?.name ?? '';
+  const space = useStore((s) => s.spaces.find((g) => g.id === s.activeSpaceId));
+  const spaceName = space?.name ?? '';
 
   useEffect(() => {
     if (focusToken > 0) ref.current?.focus();
@@ -25,7 +25,7 @@ export function TaskInput() {
   };
 
   return (
-    <div className="task-input" style={region ? { ['--region' as string]: regionHue(region.colorIndex) } : undefined}>
+    <div className="task-input" style={space ? { ['--space' as string]: spaceHue(space.colorIndex) } : undefined}>
       <span className="task-input-plus" aria-hidden="true">
         +
       </span>
@@ -34,7 +34,7 @@ export function TaskInput() {
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={onKeyDown}
-        placeholder={`Add a task to ${regionName || 'this region'}…`}
+        placeholder={`Add a task to ${spaceName || 'this space'}…`}
         title="!1–!3 sets priority · #tag adds a tag"
         aria-label="New task"
         maxLength={500}

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { MATERIALS, RAMP, regionHue } from '../../contracts/tokens';
+import { MATERIALS, RAMP, spaceHue } from '../../contracts/tokens';
 
 const G = MATERIALS.glass;
 
@@ -17,8 +17,8 @@ export function mixHex(a: string, b: string, t: number): string {
     .getHexString()}`;
 }
 
-/** One region hue expanded into its roles. Derived at runtime so the palette is tuned in one place. */
-export interface RegionRamp {
+/** One space hue expanded into its roles. Derived at runtime so the palette is tuned in one place. */
+export interface SpaceRamp {
   base: string;
   core: string;
   dim: string;
@@ -30,12 +30,12 @@ export interface RegionRamp {
   completedGlass: string;
 }
 
-const rampCache = new Map<number, RegionRamp>();
+const rampCache = new Map<number, SpaceRamp>();
 
-export function regionRamp(colorIndex: number): RegionRamp {
+export function spaceRamp(colorIndex: number): SpaceRamp {
   let r = rampCache.get(colorIndex);
   if (!r) {
-    const base = regionHue(colorIndex);
+    const base = spaceHue(colorIndex);
     const completed = mixHex(base, RAMP.completed.target, RAMP.completed.amount);
     r = {
       base,

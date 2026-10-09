@@ -1,22 +1,22 @@
-import type { Priority, Region, RegionKind, Task } from '../contracts/task';
+import type { Priority, Space, SpaceKind, Task } from '../contracts/task';
 
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
 
 type Seed = [title: string, priority: Priority, dueInDays: number | null, done: boolean, tags: string[], notes?: string];
 
-interface RegionSeed {
+interface SpaceSeed {
   id: string;
   name: string;
-  kind: RegionKind;
+  kind: SpaceKind;
   description: string | null;
   targetInDays: number | null;
   tasks: Seed[];
 }
 
-const DEMO: RegionSeed[] = [
+const DEMO: SpaceSeed[] = [
   {
-    id: 'region-launch',
+    id: 'space-launch',
     name: 'Product Launch',
     kind: 'project',
     description: 'Ship woTask 1.0 to the first hundred users.',
@@ -35,7 +35,7 @@ const DEMO: RegionSeed[] = [
     ],
   },
   {
-    id: 'region-health',
+    id: 'space-health',
     name: 'Health',
     kind: 'goal',
     description: 'Run a 10K without stopping by the end of the year.',
@@ -52,7 +52,7 @@ const DEMO: RegionSeed[] = [
     ],
   },
   {
-    id: 'region-study',
+    id: 'space-study',
     name: 'পড়াশোনা',
     kind: 'category',
     description: 'Courses, reading and exam prep.',
@@ -68,7 +68,7 @@ const DEMO: RegionSeed[] = [
     ],
   },
   {
-    id: 'region-backlog',
+    id: 'space-backlog',
     name: 'Backlog',
     kind: 'category',
     description: null,
@@ -90,8 +90,8 @@ const DEMO: RegionSeed[] = [
   },
 ];
 
-function build(seeds: RegionSeed[], now: number): { regions: Region[]; tasks: Task[] } {
-  const regions: Region[] = seeds.map((g, i) => ({
+function build(seeds: SpaceSeed[], now: number): { spaces: Space[]; tasks: Task[] } {
+  const spaces: Space[] = seeds.map((g, i) => ({
     id: g.id,
     name: g.name,
     kind: g.kind,
@@ -108,7 +108,7 @@ function build(seeds: RegionSeed[], now: number): { regions: Region[]; tasks: Ta
       const createdAt = now - (40 - i) * HOUR;
       tasks.push({
         id: `${g.id}-task-${i}`,
-        regionId: g.id,
+        spaceId: g.id,
         title,
         notes: notes ?? '',
         priority,
@@ -121,25 +121,25 @@ function build(seeds: RegionSeed[], now: number): { regions: Region[]; tasks: Ta
       });
     });
   }
-  return { regions, tasks };
+  return { spaces, tasks };
 }
 
-/** Development seed: four regions covering every kind, with Bangla text. */
-export function buildDemoData(now: number): { regions: Region[]; tasks: Task[] } {
+/** Development seed: four spaces covering every kind, with Bangla text. */
+export function buildDemoData(now: number): { spaces: Space[]; tasks: Task[] } {
   return build(DEMO, now);
 }
 
 const P: Priority[] = [0, 1, 2, 3];
 
 /** Dev-only fixtures selected with `?seed=<name>`, used by the UI and visual tests. */
-export const FIXTURES: Record<string, (now: number) => { regions: Region[]; tasks: Task[] }> = {
+export const FIXTURES: Record<string, (now: number) => { spaces: Space[]; tasks: Task[] }> = {
   demo: buildDemoData,
-  none: () => ({ regions: [], tasks: [] }),
+  none: () => ({ spaces: [], tasks: [] }),
   priorities: (now) =>
     build(
       [
         {
-          id: 'region-priorities',
+          id: 'space-priorities',
           name: 'Priorities',
           kind: 'project',
           description: null,
@@ -153,7 +153,7 @@ export const FIXTURES: Record<string, (now: number) => { regions: Region[]; task
     build(
       [
         {
-          id: 'region-states',
+          id: 'space-states',
           name: 'States',
           kind: 'category',
           description: null,
@@ -170,7 +170,7 @@ export const FIXTURES: Record<string, (now: number) => { regions: Region[]; task
     build(
       [
         {
-          id: 'region-dense',
+          id: 'space-dense',
           name: 'Dense',
           kind: 'project',
           description: null,
@@ -193,7 +193,7 @@ export const FIXTURES: Record<string, (now: number) => { regions: Region[]; task
           ['NID-OCR', 'category', 2],
         ] as const
       ).map(([name, kind, n], r) => ({
-        id: `region-reorder-${r}`,
+        id: `space-reorder-${r}`,
         name,
         kind,
         description: null,
@@ -205,7 +205,7 @@ export const FIXTURES: Record<string, (now: number) => { regions: Region[]; task
   many: (now) =>
     build(
       Array.from({ length: 30 }, (_, r) => ({
-        id: `region-many-${r}`,
+        id: `space-many-${r}`,
         name: `${(['Project', 'Goal', 'Category'] as const)[r % 3]} ${r + 1}`,
         kind: (['project', 'goal', 'category'] as const)[r % 3],
         description: null,
@@ -217,7 +217,7 @@ export const FIXTURES: Record<string, (now: number) => { regions: Region[]; task
   stress: (now) =>
     build(
       Array.from({ length: 10 }, (_, r) => ({
-        id: `region-stress-${r}`,
+        id: `space-stress-${r}`,
         name: `Stress ${r + 1}`,
         kind: (['category', 'project', 'goal'] as const)[r % 3],
         description: null,

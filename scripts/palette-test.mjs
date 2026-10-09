@@ -1,10 +1,10 @@
-// Guards the region palette against drift: stored indices must keep their colour, every hue must stay in
+// Guards the space palette against drift: stored indices must keep their colour, every hue must stay in
 // the lightness/chroma band that reads well as glass under bloom, and every pair must be perceptually
 // distinct. Usage: npm run test:palette
 import { readFileSync } from 'node:fs';
 import { converter, differenceEuclidean } from 'culori';
 
-/** Regions store an index into the palette; these entries can never change or move. */
+/** Spaces store an index into the palette; these entries can never change or move. */
 const FROZEN = ['#7490BD', '#5F9E8F', '#C09562', '#B57D8E', '#8E83BC', '#6B9DB0', '#B9796B', '#8EA06E'];
 const MIN_COUNT = 24;
 const L_RANGE = [0.58, 0.78];
@@ -13,8 +13,8 @@ const C_RANGE = [0.05, 0.14];
 const MIN_DISTANCE = 0.045;
 
 const src = readFileSync(new URL('../src/contracts/tokens.ts', import.meta.url), 'utf8');
-const block = /regionHues:\s*\[([^\]]+)\]/.exec(src);
-if (!block) throw new Error('PALETTE.regionHues not found in tokens.ts');
+const block = /spaceHues:\s*\[([^\]]+)\]/.exec(src);
+if (!block) throw new Error('PALETTE.spaceHues not found in tokens.ts');
 const hexes = [...block[1].matchAll(/'(#[0-9a-fA-F]{6})'/g)].map((m) => m[1].toUpperCase());
 
 const oklch = converter('oklch');
@@ -26,9 +26,9 @@ const fail = (msg) => {
   failures++;
 };
 
-if (hexes.length < MIN_COUNT) fail(`expected at least ${MIN_COUNT} region hues, found ${hexes.length}`);
+if (hexes.length < MIN_COUNT) fail(`expected at least ${MIN_COUNT} space hues, found ${hexes.length}`);
 FROZEN.forEach((hex, i) => {
-  if (hexes[i] !== hex) fail(`index ${i} must stay ${hex} (stored regions refer to it), found ${hexes[i]}`);
+  if (hexes[i] !== hex) fail(`index ${i} must stay ${hex} (stored spaces refer to it), found ${hexes[i]}`);
 });
 if (new Set(hexes).size !== hexes.length) fail('palette contains duplicates');
 

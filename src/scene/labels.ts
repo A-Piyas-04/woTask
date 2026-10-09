@@ -10,10 +10,10 @@ export interface LabelEntry {
   /** Live world position of the orb (the label sits `offsetY` below it). */
   pos: THREE.Vector3;
   offsetY: number;
-  regionId: string;
+  spaceId: string;
   selected: boolean;
   hovered: boolean;
-  /** High priority or overdue: always a candidate regardless of region. */
+  /** High priority or overdue: always a candidate regardless of space. */
   important: boolean;
   /** Higher wins a collision. */
   rank: number;
@@ -79,15 +79,15 @@ const PAD = 3;
 
 /**
  * Decides which task labels are visible each frame, by writing `style.opacity` only (never React state):
- * selected/hovered, important (high priority or overdue), or in the active region within
+ * selected/hovered, important (high priority or overdue), or in the active space within
  * `CAMERA.labelDistance`. Everything fades with distance, and a screen-space pass hides the
  * lower-ranked of any two overlapping labels.
  */
-export function LabelCuller({ registry, activeRegionId }: { registry: LabelRegistry; activeRegionId: string | null }) {
-  const live = useRef(activeRegionId);
-  live.current = activeRegionId;
+export function LabelCuller({ registry, activeSpaceId }: { registry: LabelRegistry; activeSpaceId: string | null }) {
+  const live = useRef(activeSpaceId);
+  live.current = activeSpaceId;
   const invalidate = useThree((s) => s.invalidate);
-  useEffect(() => invalidate(), [activeRegionId, invalidate]);
+  useEffect(() => invalidate(), [activeSpaceId, invalidate]);
   const tmp = useMemo(() => ({ v: new THREE.Vector3(), lastCam: new THREE.Vector3(Infinity, 0, 0) }), []);
   const candidates = useRef<{ e: LabelEntry; fade: number; box: Box }[]>([]);
 
@@ -104,7 +104,7 @@ export function LabelCuller({ registry, activeRegionId }: { registry: LabelRegis
       tmp.v.set(e.pos.x, e.pos.y - e.offsetY, e.pos.z);
       const dist = cam.position.distanceTo(tmp.v);
       const pinned = e.selected || e.hovered;
-      const wanted = pinned || e.important || (e.regionId === live.current && dist < CAMERA.labelDistance);
+      const wanted = pinned || e.important || (e.spaceId === live.current && dist < CAMERA.labelDistance);
       const fade = pinned ? 1 : 1 - smoothstep(CAMERA.labelFade[0], CAMERA.labelFade[1], dist);
       if (!wanted || fade < 0.02) {
         write(e, 0);

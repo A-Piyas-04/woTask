@@ -2,28 +2,28 @@ import { Html } from '@react-three/drei';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import * as THREE from 'three';
-import { REGION_KIND_LABELS } from '../../contracts/task';
-import { CAMERA, CONSTELLATION, MATERIALS, REGION_KIND_STYLE } from '../../contracts/tokens';
+import { SPACE_KIND_LABELS } from '../../contracts/task';
+import { CAMERA, CONSTELLATION, MATERIALS, SPACE_KIND_STYLE } from '../../contracts/tokens';
 import { FRAME, pointerState, sceneSeconds, type PositionRegistry } from '../interaction';
 import type { Zone } from '../layout';
-import { createGlowMaterial, getDiscTexture, sharedGeometry, type RegionRamp } from '../materials/materials';
+import { createGlowMaterial, getDiscTexture, sharedGeometry, type SpaceRamp } from '../materials/materials';
 
-export interface RegionStats {
+export interface SpaceStats {
   open: number;
   done: number;
 }
 
 export interface ConstellationProps {
   zone: Zone;
-  ramp: RegionRamp;
-  stats: RegionStats;
+  ramp: SpaceRamp;
+  stats: SpaceStats;
   active: boolean;
   ambient: boolean;
   /** Horizontal distance to the neighbouring zone centre, world units. */
   spacing: number;
   registry: PositionRegistry;
   labelLayer: RefObject<HTMLDivElement | null>;
-  onSelectRegion(id: string): void;
+  onSelectSpace(id: string): void;
 }
 
 const DAY = 86_400_000;
@@ -40,13 +40,13 @@ function zoneLabelFade(distance: number, heightPx: number, spacing: number): { d
   return { detail: distance < CAMERA.zoneDetailDistance, fade: Math.round(t * t * (3 - 2 * t) * 20) / 20 };
 }
 
-function subtitle(zone: Zone, stats: RegionStats): string {
+function subtitle(zone: Zone, stats: SpaceStats): string {
   const total = stats.open + stats.done;
-  const { region } = zone;
-  if (region.kind === 'goal') {
+  const { space } = zone;
+  if (space.kind === 'goal') {
     const parts = [`${stats.done} of ${total} complete`];
-    if (region.targetDate !== null) {
-      const days = Math.ceil((region.targetDate - Date.now()) / DAY);
+    if (space.targetDate !== null) {
+      const days = Math.ceil((space.targetDate - Date.now()) / DAY);
       parts.push(days > 1 ? `${days} days left` : days === 1 ? '1 day left' : days === 0 ? 'due today' : `${-days} days past target`);
     }
     return parts.join(' · ');
@@ -55,9 +55,9 @@ function subtitle(zone: Zone, stats: RegionStats): string {
   return `${stats.open} open · ${stats.done} done`;
 }
 
-/** Floor disc, hairline boundary, hub, goal arc and the light lines joining a region's tasks. Orbs are rendered separately. */
-export function Constellation({ zone, ramp, stats, active, ambient, spacing, registry, labelLayer, onSelectRegion }: ConstellationProps) {
-  const { region, orbs, center, edges } = zone;
+/** Floor disc, hairline boundary, hub, goal arc and the light lines joining a space's tasks. Orbs are rendered separately. */
+export function Constellation({ zone, ramp, stats, active, ambient, spacing, registry, labelLayer, onSelectSpace }: ConstellationProps) {
+  const { space, orbs, center, edges } = zone;
   const hub = useRef<THREE.Mesh>(null);
   const [labelEl, setLabelEl] = useState<HTMLDivElement | null>(null);
   const labelState = useRef({ detail: true, fade: 1 });
@@ -65,7 +65,7 @@ export function Constellation({ zone, ramp, stats, active, ambient, spacing, reg
     labelState.current = { detail: true, fade: 1 };
   }, [labelEl]);
   const ry = zone.radius / CONSTELLATION.ellipseX;
-  const kindStyle = REGION_KIND_STYLE[region.kind];
+  const kindStyle = SPACE_KIND_STYLE[space.kind];
   const hubRadius = MATERIALS.hub.radius * (kindStyle.hub === 'diamond' ? MATERIALS.diamondHubScale : 1);
 
   const hubMat = useMemo(() => createGlowMaterial(ramp.base, MATERIALS.hub.intensity), [ramp.base]);
@@ -128,18 +128,18 @@ export function Constellation({ zone, ramp, stats, active, ambient, spacing, reg
   const total = stats.open + stats.done;
   const ratio = total === 0 ? 0 : stats.done / total;
   const arc = useMemo(() => {
-    if (region.kind !== 'goal' || ratio <= 0) return null;
+    if (space.kind !== 'goal' || ratio <= 0) return null;
     const { radius, width } = MATERIALS.goalArc;
     const length = Math.max(0.0001, ratio) * Math.PI * 2;
     // Fills clockwise from 12 o'clock.
     return new THREE.RingGeometry(radius - width / 2, radius + width / 2, 96, 1, Math.PI / 2 - length, length);
-  }, [region.kind, ratio]);
+  }, [space.kind, ratio]);
   useEffect(() => () => arc?.dispose(), [arc]);
   const track = useMemo(() => {
-    if (region.kind !== 'goal') return null;
+    if (space.kind !== 'goal') return null;
     const { radius, width } = MATERIALS.goalArc;
     return new THREE.RingGeometry(radius - width / 2, radius + width / 2, 96);
-  }, [region.kind]);
+  }, [space.kind]);
   useEffect(() => () => track?.dispose(), [track]);
   const { arcMat, trackMat } = useMemo(
     () => ({
@@ -193,7 +193,7 @@ export function Constellation({ zone, ramp, stats, active, ambient, spacing, reg
 
   const onHubClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
-    if (!pointerState.dragged) onSelectRegion(region.id);
+    if (!pointerState.dragged) onSelectSpace(space.id);
   };
 
   return (
@@ -233,13 +233,13 @@ export function Constellation({ zone, ramp, stats, active, ambient, spacing, reg
           <div
             ref={setLabelEl}
             className={`zone-label${active ? ' is-active' : ''}`}
-            data-kind={region.kind}
+            data-kind={space.kind}
             data-detail="full"
             style={{ ['--zone-text' as string]: ramp.text }}
           >
             <span className="zone-name" lang="bn-BD en">
-              <span className="kind-mark" data-kind={region.kind} title={REGION_KIND_LABELS[region.kind]} />
-              {region.name}
+              <span className="kind-mark" data-kind={space.kind} title={SPACE_KIND_LABELS[space.kind]} />
+              {space.name}
             </span>
             <span className="zone-count">{subtitle(zone, stats)}</span>
           </div>

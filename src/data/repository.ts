@@ -1,38 +1,74 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { TaskRepository } from '../contracts/repository';
-import { RegionArraySchema, RegionSchema, TaskArraySchema, TaskSchema, type Region, type Task } from '../contracts/task';
+import type { DataRepository } from '../contracts/repository';
+import {
+  SpaceArraySchema,
+  SpaceSchema,
+  TaskObjectSchema,
+  type Space,
+  type Task,
+} from '../contracts/task';
+import { z } from 'zod';
 
 export const isTauri = (): boolean => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
-class TauriRepository implements TaskRepository {
+/* ------------------------------------------------------------------------------------------------
+ * The wire format.
+ *
+ * The domain calls them spaces; the wire — SQLite tables, Tauri command names, the localStorage blob
+ * — still says `region`, because renaming those would mean rewriting tables in databases that
+ * already hold real data for no behavioural gain. This file is the ONLY place that mapping exists.
+ * Nothing above it should ever see the word `region`.
+ *
+ * A space row is structurally identical to `Space` — only the type name differed — so it needs no
+ * mapper. The single real field rename is `Task.spaceId` <-> `regionId`, and the wire schema is
+ * derived from `TaskObjectSchema` rather than written out, so a field added to the task contract
+ * propagates here automatically and cannot drift.
+ * ---------------------------------------------------------------------------------------------- */
+
+const SpaceWireSchema = SpaceSchema;
+const SpaceWireArraySchema = SpaceArraySchema;
+
+const TaskWireSchema = TaskObjectSchema.omit({ spaceId: true }).extend({ regionId: z.string().min(1) });
+const TaskWireArraySchema = z.array(TaskWireSchema);
+type TaskWire = z.infer<typeof TaskWireSchema>;
+
+const toTask = ({ regionId, ...rest }: TaskWire): Task => ({ ...rest, spaceId: regionId });
+const toTaskWire = ({ spaceId, ...rest }: Task): TaskWire => ({ ...rest, regionId: spaceId });
+
+/** Zod parses the wire shape in both directions; the mapping sits outside the parse. */
+class TauriRepository implements DataRepository {
   readonly kind = 'tauri' as const;
 
-  async getRegions(): Promise<Region[]> {
-    return RegionArraySchema.parse(await invoke('get_regions'));
+  async getSpaces(): Promise<Space[]> {
+    return SpaceWireArraySchema.parse(await invoke('get_regions'));
   }
-  async createRegion(region: Region): Promise<Region> {
-    return RegionSchema.parse(await invoke('save_region', { region: RegionSchema.parse(region) }));
+  async createSpace(space: Space): Promise<Space> {
+    return SpaceWireSchema.parse(await invoke('save_region', { region: SpaceWireSchema.parse(space) }));
   }
-  async updateRegion(region: Region): Promise<Region> {
-    return this.createRegion(region);
+  async updateSpace(space: Space): Promise<Space> {
+    return this.createSpace(space);
   }
-  async deleteRegion(id: string): Promise<void> {
+  async deleteSpace(id: string): Promise<void> {
     await invoke('delete_region', { id });
   }
   async getTasks(): Promise<Task[]> {
-    return TaskArraySchema.parse(await invoke('get_tasks'));
+    return TaskWireArraySchema.parse(await invoke('get_tasks')).map(toTask);
   }
   async saveTask(task: Task): Promise<Task> {
-    return TaskSchema.parse(await invoke('save_task', { task: TaskSchema.parse(task) }));
+    const wire = TaskWireSchema.parse(toTaskWire(task));
+    return toTask(TaskWireSchema.parse(await invoke('save_task', { task: wire })));
   }
   async deleteTask(id: string): Promise<void> {
     await invoke('delete_task', { id });
   }
-  async reorderTasks(regionId: string, orderedIds: string[]): Promise<void> {
-    await invoke('reorder_tasks', { regionId, orderedIds });
+  async reorderTasks(spaceId: string, orderedIds: string[]): Promise<void> {
+    await invoke('reorder_tasks', { regionId: spaceId, orderedIds });
   }
-  async seed(regions: Region[], tasks: Task[]): Promise<void> {
-    await invoke('seed', { regions: RegionArraySchema.parse(regions), tasks: TaskArraySchema.parse(tasks) });
+  async seed(spaces: Space[], tasks: Task[]): Promise<void> {
+    await invoke('seed', {
+      regions: SpaceWireArraySchema.parse(spaces),
+      tasks: TaskWireArraySchema.parse(tasks.map(toTaskWire)),
+    });
   }
   async dataPath(): Promise<string> {
     return String(await invoke('data_path'));
@@ -40,21 +76,23 @@ class TauriRepository implements TaskRepository {
 }
 
 export const BROWSER_STORAGE_KEY = 'wotask:v2';
-/** Pre-region storage format; converted once, then removed. */
+/** Pre-space storage format; converted once, then removed. */
 const LEGACY_STORAGE_KEY = 'wotask:v1';
+/** v1 shipped eight hues. History: never follow the palette's current length. */
 const LEGACY_HUE_COUNT = 8;
 
+/** Wire-shaped, because older builds wrote this blob and must keep loading. */
 interface BrowserDb {
-  regions: Region[];
-  tasks: Task[];
+  regions: Space[];
+  tasks: TaskWire[];
 }
 
 function convertLegacy(raw: string): BrowserDb {
   const old = JSON.parse(raw) as {
     lists?: { id: string; name: string; position: number; createdAt: number }[];
-    tasks?: (Omit<Task, 'regionId'> & { listId: string })[];
+    tasks?: (Omit<TaskWire, 'regionId'> & { listId: string })[];
   };
-  const regions: Region[] = (old.lists ?? []).map((g) => ({
+  const regions: Space[] = (old.lists ?? []).map((g) => ({
     id: g.id,
     name: g.name,
     kind: 'category',
@@ -65,12 +103,12 @@ function convertLegacy(raw: string): BrowserDb {
     createdAt: g.createdAt,
     archivedAt: null,
   }));
-  const tasks: Task[] = (old.tasks ?? []).map(({ listId, ...t }) => ({ ...t, regionId: listId }));
-  return { regions: RegionArraySchema.parse(regions), tasks: TaskArraySchema.parse(tasks) };
+  const tasks: TaskWire[] = (old.tasks ?? []).map(({ listId, ...t }) => ({ ...t, regionId: listId }));
+  return { regions: SpaceWireArraySchema.parse(regions), tasks: TaskWireArraySchema.parse(tasks) };
 }
 
 /** Used when running in a plain browser tab (`npm run dev`). */
-class BrowserRepository implements TaskRepository {
+class BrowserRepository implements DataRepository {
   readonly kind = 'browser' as const;
 
   constructor(private readonly key: string) {
@@ -86,62 +124,67 @@ class BrowserRepository implements TaskRepository {
     }
   }
 
+  /**
+   * "Nothing stored" and "stored but unparseable" are different answers and must stay different.
+   * Returning an empty database for the second one is a silent data-wipe: the caller would show an
+   * empty universe, and the very next mutation would `write()` over data that was merely unreadable.
+   * So an unreadable blob throws, and `init()` surfaces it as a load error instead.
+   */
   private read(): BrowserDb {
-    try {
-      const raw = localStorage.getItem(this.key);
-      if (!raw) return { regions: [], tasks: [] };
-      const obj = JSON.parse(raw) as { regions?: unknown; tasks?: unknown };
-      return { regions: RegionArraySchema.parse(obj.regions ?? []), tasks: TaskArraySchema.parse(obj.tasks ?? []) };
-    } catch {
-      return { regions: [], tasks: [] };
-    }
+    const raw = localStorage.getItem(this.key);
+    if (!raw) return { regions: [], tasks: [] };
+    const obj = JSON.parse(raw) as { regions?: unknown; tasks?: unknown };
+    return { regions: SpaceWireArraySchema.parse(obj.regions ?? []), tasks: TaskWireArraySchema.parse(obj.tasks ?? []) };
   }
   private write(db: BrowserDb): void {
     localStorage.setItem(this.key, JSON.stringify(db));
   }
 
-  async getRegions(): Promise<Region[]> {
+  async getSpaces(): Promise<Space[]> {
     return [...this.read().regions].sort((a, b) => a.position - b.position);
   }
-  async createRegion(region: Region): Promise<Region> {
+  async createSpace(space: Space): Promise<Space> {
     const db = this.read();
-    db.regions = [...db.regions.filter((g) => g.id !== region.id), RegionSchema.parse(region)];
+    db.regions = [...db.regions.filter((g) => g.id !== space.id), SpaceWireSchema.parse(space)];
     this.write(db);
-    return region;
+    return space;
   }
-  async updateRegion(region: Region): Promise<Region> {
-    return this.createRegion(region);
+  async updateSpace(space: Space): Promise<Space> {
+    return this.createSpace(space);
   }
-  async deleteRegion(id: string): Promise<void> {
+  async deleteSpace(id: string): Promise<void> {
     const db = this.read();
     db.regions = db.regions.filter((g) => g.id !== id);
     db.tasks = db.tasks.filter((t) => t.regionId !== id);
     this.write(db);
   }
   async getTasks(): Promise<Task[]> {
-    return this.read().tasks;
+    return this.read().tasks.map(toTask);
   }
   async saveTask(task: Task): Promise<Task> {
     const db = this.read();
-    const valid = TaskSchema.parse(task);
+    const valid = TaskWireSchema.parse(toTaskWire(task));
     db.tasks = [...db.tasks.filter((t) => t.id !== task.id), valid];
     this.write(db);
-    return valid;
+    return toTask(valid);
   }
   async deleteTask(id: string): Promise<void> {
     const db = this.read();
     db.tasks = db.tasks.filter((t) => t.id !== id);
     this.write(db);
   }
-  async reorderTasks(regionId: string, orderedIds: string[]): Promise<void> {
+  async reorderTasks(spaceId: string, orderedIds: string[]): Promise<void> {
     const db = this.read();
     const index = new Map(orderedIds.map((id, i) => [id, i]));
-    db.tasks = db.tasks.map((t) => (t.regionId === regionId && index.has(t.id) ? { ...t, position: index.get(t.id) ?? t.position } : t));
+    db.tasks = db.tasks.map((t) => (t.regionId === spaceId && index.has(t.id) ? { ...t, position: index.get(t.id) ?? t.position } : t));
     this.write(db);
   }
-  async seed(regions: Region[], tasks: Task[]): Promise<void> {
+  async seed(spaces: Space[], tasks: Task[]): Promise<void> {
     if (this.read().regions.length > 0) return;
-    this.write({ regions: RegionArraySchema.parse(regions), tasks: TaskArraySchema.parse(tasks) });
+    this.write({
+      regions: SpaceWireArraySchema.parse(spaces),
+      tasks: TaskWireArraySchema.parse(tasks.map(toTaskWire)),
+    });
   }
   async dataPath(): Promise<string> {
     return 'Browser localStorage (development mode)';
@@ -149,7 +192,7 @@ class BrowserRepository implements TaskRepository {
 }
 
 /** `browserKey` lets dev test fixtures use an isolated localStorage slot. */
-export function createRepository(browserKey: string = BROWSER_STORAGE_KEY): TaskRepository {
+export function createRepository(browserKey: string = BROWSER_STORAGE_KEY): DataRepository {
   return isTauri() ? new TauriRepository() : new BrowserRepository(browserKey);
 }
 

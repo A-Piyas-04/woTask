@@ -10,16 +10,16 @@ export type AppCommandId =
   | 'selection.next'
   | 'selection.prev'
   | 'selection.clear'
-  | 'region.next'
-  | 'region.prev'
-  | 'region.new'
+  | 'space.next'
+  | 'space.prev'
+  | 'space.new'
   | 'history.undo'
   | 'palette.open'
   | 'view.toggleCompleted'
   | 'view.shortcuts'
   | 'settings.open';
 
-export type CommandGroup = 'Navigation' | 'Tasks' | 'Regions' | 'View';
+export type CommandGroup = 'Navigation' | 'Tasks' | 'Spaces' | 'View';
 
 export interface AppCommand {
   id: AppCommandId;
@@ -40,9 +40,9 @@ export const COMMANDS: readonly AppCommand[] = [
   { id: 'selection.next', title: 'Select next task', shortcut: '↓', group: 'Navigation' },
   { id: 'selection.prev', title: 'Select previous task', shortcut: '↑', group: 'Navigation' },
   { id: 'selection.clear', title: 'Clear selection', shortcut: 'Esc', group: 'Navigation' },
-  { id: 'region.next', title: 'Next region', shortcut: 'Ctrl+→', group: 'Regions' },
-  { id: 'region.prev', title: 'Previous region', shortcut: 'Ctrl+←', group: 'Regions' },
-  { id: 'region.new', title: 'New region', shortcut: 'Ctrl+Shift+N', group: 'Regions' },
+  { id: 'space.next', title: 'Next space', shortcut: 'Ctrl+→', group: 'Spaces' },
+  { id: 'space.prev', title: 'Previous space', shortcut: 'Ctrl+←', group: 'Spaces' },
+  { id: 'space.new', title: 'New space', shortcut: 'Ctrl+Shift+N', group: 'Spaces' },
   { id: 'history.undo', title: 'Undo', shortcut: 'Ctrl+Z', group: 'Tasks' },
   { id: 'view.toggleCompleted', title: 'Show / hide completed tasks', shortcut: 'H', group: 'View' },
   { id: 'view.shortcuts', title: 'Keyboard shortcuts', shortcut: '?', group: 'View' },

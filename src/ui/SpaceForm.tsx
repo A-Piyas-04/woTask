@@ -1,31 +1,31 @@
 import { useState, type FormEvent } from 'react';
-import { REGION_KIND_LABELS, type RegionKind } from '../contracts/task';
+import { SPACE_KIND_LABELS, type SpaceKind } from '../contracts/task';
 import { PALETTE } from '../contracts/tokens';
 import { fromDateInput, toDateInput } from './dates';
 
-export interface RegionDraft {
+export interface SpaceDraft {
   name: string;
-  kind: RegionKind;
+  kind: SpaceKind;
   description: string;
   colorIndex: number;
   targetDate: number | null;
 }
 
-const KINDS: RegionKind[] = ['category', 'project', 'goal'];
+const KINDS: SpaceKind[] = ['category', 'project', 'goal'];
 
 interface Props {
-  initial: RegionDraft;
+  initial: SpaceDraft;
   submitLabel: string;
-  onSubmit(draft: RegionDraft): void;
+  onSubmit(draft: SpaceDraft): void;
   /** Called on every change, for forms that save live. */
-  onChange?(draft: RegionDraft): void;
+  onChange?(draft: SpaceDraft): void;
   autoFocus?: boolean;
 }
 
-/** Name, kind, colour, description and (for goals) target date. Shared by onboarding and the region panel. */
-export function RegionForm({ initial, submitLabel, onSubmit, onChange, autoFocus }: Props) {
+/** Name, kind, colour, description and (for goals) target date. Shared by onboarding and the space panel. */
+export function SpaceForm({ initial, submitLabel, onSubmit, onChange, autoFocus }: Props) {
   const [draft, setDraft] = useState(initial);
-  const update = (patch: Partial<RegionDraft>) => {
+  const update = (patch: Partial<SpaceDraft>) => {
     const next = { ...draft, ...patch };
     setDraft(next);
     onChange?.(next);
@@ -36,7 +36,7 @@ export function RegionForm({ initial, submitLabel, onSubmit, onChange, autoFocus
   };
 
   return (
-    <form className="region-form" onSubmit={submit}>
+    <form className="space-form" onSubmit={submit}>
       <label className="field">
         <span>Name</span>
         <input
@@ -46,13 +46,13 @@ export function RegionForm({ initial, submitLabel, onSubmit, onChange, autoFocus
           placeholder="e.g. Thesis, Kitchen renovation, Run a 10K"
           autoFocus={autoFocus}
           lang="bn-BD en"
-          aria-label="Region name"
+          aria-label="Space name"
         />
       </label>
 
       <div className="field">
         <span>Kind</span>
-        <div className="segmented" role="radiogroup" aria-label="Region kind">
+        <div className="segmented" role="radiogroup" aria-label="Space kind">
           {KINDS.map((k) => (
             <button
               key={k}
@@ -63,7 +63,7 @@ export function RegionForm({ initial, submitLabel, onSubmit, onChange, autoFocus
               onClick={() => update({ kind: k })}
             >
               <span className="kind-mark" data-kind={k} aria-hidden="true" />
-              {REGION_KIND_LABELS[k]}
+              {SPACE_KIND_LABELS[k]}
             </button>
           ))}
         </div>
@@ -71,8 +71,8 @@ export function RegionForm({ initial, submitLabel, onSubmit, onChange, autoFocus
 
       <div className="field">
         <span>Colour</span>
-        <div className="swatches" role="radiogroup" aria-label="Region colour">
-          {PALETTE.regionHues.map((hex, i) => (
+        <div className="swatches" role="radiogroup" aria-label="Space colour">
+          {PALETTE.spaceHues.map((hex, i) => (
             <button
               key={hex}
               type="button"

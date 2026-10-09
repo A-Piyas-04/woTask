@@ -115,7 +115,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Shape = region kind: diamond for projects, ring for goals, dot for categories. Colour comes from the text. */
+/* Shape = space kind: diamond for projects, ring for goals, dot for categories. Colour comes from the text. */
 .kind-mark {
   display: inline-block;
   flex: none;

@@ -1,7 +1,7 @@
 import { Html } from '@react-three/drei';
 import { useEffect, useMemo, type RefObject } from 'react';
 import * as THREE from 'three';
-import { REGION_KIND_PLURALS } from '../../contracts/task';
+import { SPACE_KIND_PLURALS } from '../../contracts/task';
 import { CLUSTER, PALETTE } from '../../contracts/tokens';
 import type { Cluster } from '../layout';
 
@@ -25,7 +25,7 @@ function roundedRect({ minX, maxX, minY, maxY }: Cluster['rect']): THREE.BufferG
   return new THREE.BufferGeometry().setFromPoints(s.getPoints(12));
 }
 
-/** Hairline outline and title around every region of one kind (Projects, Goals, Categories). */
+/** Hairline outline and title around every space of one kind (Projects, Goals, Categories). */
 export function ClusterFrame({ cluster, labelLayer }: Props) {
   const { rect, kind, count } = cluster;
   const line = useMemo(() => {
@@ -53,10 +53,10 @@ export function ClusterFrame({ cluster, labelLayer }: Props) {
         <div className="cluster-label" data-kind={kind}>
           <span className="cluster-name">
             <span className="kind-mark" data-kind={kind} />
-            {REGION_KIND_PLURALS[kind]}
+            {SPACE_KIND_PLURALS[kind]}
           </span>
           <span className="cluster-count">
-            {count} {count === 1 ? 'region' : 'regions'}
+            {count} {count === 1 ? 'space' : 'spaces'}
           </span>
         </div>
       </Html>

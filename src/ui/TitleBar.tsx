@@ -2,7 +2,7 @@ import { windowControls } from '../data/repository';
 import { useStore } from '../state/store';
 
 export function TitleBar() {
-  const regionName = useStore((s) => s.regions.find((g) => g.id === s.activeRegionId)?.name ?? '');
+  const spaceName = useStore((s) => s.spaces.find((g) => g.id === s.activeSpaceId)?.name ?? '');
   const openSettings = useStore((s) => s.setSettingsOpen);
   const openPalette = useStore((s) => s.setPaletteOpen);
 
@@ -14,9 +14,9 @@ export function TitleBar() {
           <circle cx="7" cy="7" r="6.25" fill="none" stroke="currentColor" strokeWidth="1" />
         </svg>
         <span data-tauri-drag-region>woTask</span>
-        {regionName && (
-          <span className="titlebar-region" data-tauri-drag-region>
-            / {regionName}
+        {spaceName && (
+          <span className="titlebar-space" data-tauri-drag-region>
+            / {spaceName}
           </span>
         )}
       </div>

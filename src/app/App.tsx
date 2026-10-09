@@ -2,12 +2,12 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import type { Task } from '../contracts/task';
 import { Scene } from '../scene/Scene';
-import type { RegionStats } from '../scene/objects/Constellation';
-import { orderTasks, useStore, visibleRegions } from '../state/store';
+import type { SpaceStats } from '../scene/objects/Constellation';
+import { orderTasks, useStore, visibleSpaces } from '../state/store';
 import { CommandPalette } from '../ui/CommandPalette';
 import { DetailPanel } from '../ui/DetailPanel';
 import { Onboarding } from '../ui/Onboarding';
-import { RegionPanel } from '../ui/RegionPanel';
+import { SpacePanel } from '../ui/SpacePanel';
 import { SettingsPanel } from '../ui/SettingsPanel';
 import { ShortcutsOverlay } from '../ui/ShortcutsOverlay';
 import { Sidebar } from '../ui/Sidebar';
@@ -25,7 +25,7 @@ export function App() {
   const ready = useStore((s) => s.ready);
   const loadError = useStore((s) => s.loadError);
   const init = useStore((s) => s.init);
-  const hasRegions = useStore((s) => s.regions.length > 0);
+  const hasSpaces = useStore((s) => s.spaces.length > 0);
 
   useEffect(() => {
     void init();
@@ -45,7 +45,7 @@ export function App() {
         </div>
       </div>
     );
-  if (!hasRegions)
+  if (!hasSpaces)
     return (
       <div className="app">
         <TitleBar />
@@ -102,31 +102,31 @@ function HintLine() {
 }
 
 function Main() {
-  const { regions, tasks, showCompleted, activeRegionId, regionFocusToken, selectedId, quality, ambientMotion } = useStore(
+  const { spaces, tasks, showCompleted, activeSpaceId, spaceFocusToken, selectedId, quality, ambientMotion } = useStore(
     useShallow((s) => ({
-      regions: s.regions,
+      spaces: s.spaces,
       tasks: s.tasks,
       showCompleted: s.showCompleted,
-      activeRegionId: s.activeRegionId,
-      regionFocusToken: s.regionFocusToken,
+      activeSpaceId: s.activeSpaceId,
+      spaceFocusToken: s.spaceFocusToken,
       selectedId: s.selectedId,
       quality: s.quality,
       ambientMotion: s.ambientMotion,
     })),
   );
   const reducedMotion = useReducedMotion();
-  const shown = useMemo(() => visibleRegions(regions), [regions]);
+  const shown = useMemo(() => visibleSpaces(spaces), [spaces]);
 
-  const tasksByRegion = useMemo(() => {
+  const tasksBySpace = useMemo(() => {
     const out: Record<string, Task[]> = {};
     for (const g of shown) out[g.id] = orderTasks(tasks, g.id, showCompleted);
     return out;
   }, [shown, tasks, showCompleted]);
 
-  const regionStats = useMemo(() => {
-    const out: Record<string, RegionStats> = {};
+  const spaceStats = useMemo(() => {
+    const out: Record<string, SpaceStats> = {};
     for (const t of tasks) {
-      const s = (out[t.regionId] ??= { open: 0, done: 0 });
+      const s = (out[t.spaceId] ??= { open: 0, done: 0 });
       if (t.completedAt === null) s.open++;
       else s.done++;
     }
@@ -136,14 +136,14 @@ function Main() {
   const onSelect = useCallback((id: string | null) => {
     const s = useStore.getState();
     const task = id ? s.tasks.find((t) => t.id === id) : undefined;
-    if (task && task.regionId !== s.activeRegionId) s.setActiveRegion(task.regionId);
+    if (task && task.spaceId !== s.activeSpaceId) s.setActiveSpace(task.spaceId);
     s.select(id);
   }, []);
-  const onSelectRegion = useCallback((id: string) => useStore.getState().setActiveRegion(id), []);
+  const onSelectSpace = useCallback((id: string) => useStore.getState().setActiveSpace(id), []);
   const onOpen = useCallback((id: string) => {
     const s = useStore.getState();
     const task = s.tasks.find((t) => t.id === id);
-    if (task && task.regionId !== s.activeRegionId) s.setActiveRegion(task.regionId);
+    if (task && task.spaceId !== s.activeSpaceId) s.setActiveSpace(task.spaceId);
     s.openEditor(id);
   }, []);
   const onToggle = useCallback((id: string) => void useStore.getState().toggleComplete(id), []);
@@ -151,18 +151,18 @@ function Main() {
   return (
     <main className="main">
       <Scene
-        regions={shown}
-        tasksByRegion={tasksByRegion}
-        regionStats={regionStats}
+        spaces={shown}
+        tasksBySpace={tasksBySpace}
+        spaceStats={spaceStats}
         hideLabels={HIDE_LABELS}
-        activeRegionId={activeRegionId}
-        regionFocusToken={regionFocusToken}
+        activeSpaceId={activeSpaceId}
+        spaceFocusToken={spaceFocusToken}
         selectedId={selectedId}
         quality={quality}
         ambient={ambientMotion}
         reducedMotion={reducedMotion}
         onSelect={onSelect}
-        onSelectRegion={onSelectRegion}
+        onSelectSpace={onSelectSpace}
         onOpen={onOpen}
         onToggle={onToggle}
       />
@@ -171,7 +171,7 @@ function Main() {
       </div>
       <HintLine />
       <DetailPanel />
-      <RegionPanel />
+      <SpacePanel />
     </main>
   );
 }

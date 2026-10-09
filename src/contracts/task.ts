@@ -11,10 +11,16 @@ export const PRIORITY_LABELS: Record<Priority, string> = {
   3: 'High',
 };
 
-/** All timestamps are integer milliseconds since the Unix epoch. */
-export const TaskSchema = z.object({
+/**
+ * All timestamps are integer milliseconds since the Unix epoch.
+ *
+ * Split in two on purpose: `TaskObjectSchema` is the plain shape, which `.omit()`/`.extend()` can
+ * still be called on, and `TaskSchema` is that shape plus its cross-field rules. `src/data/repository.ts`
+ * derives the wire schema from the object; everything else validates with `TaskSchema`.
+ */
+export const TaskObjectSchema = z.object({
   id: z.string().min(1),
-  regionId: z.string().min(1),
+  spaceId: z.string().min(1),
   title: z.string().min(1).max(500),
   notes: z.string().max(20_000),
   priority: PrioritySchema,
@@ -25,50 +31,53 @@ export const TaskSchema = z.object({
   updatedAt: z.number().int(),
   tags: z.array(z.string().min(1).max(40)),
 });
-export type Task = z.infer<typeof TaskSchema>;
 
-export const RegionKindSchema = z.enum(['category', 'project', 'goal']);
-export type RegionKind = z.infer<typeof RegionKindSchema>;
+export const TaskSchema = TaskObjectSchema;
+export type Task = z.infer<typeof TaskObjectSchema>;
 
-export const REGION_KIND_LABELS: Record<RegionKind, string> = {
+export const SpaceKindSchema = z.enum(['category', 'project', 'goal']);
+export type SpaceKind = z.infer<typeof SpaceKindSchema>;
+
+export const SPACE_KIND_LABELS: Record<SpaceKind, string> = {
   category: 'Category',
   project: 'Project',
   goal: 'Goal',
 };
 
-export const REGION_KIND_PLURALS: Record<RegionKind, string> = {
+export const SPACE_KIND_PLURALS: Record<SpaceKind, string> = {
   category: 'Categories',
   project: 'Projects',
   goal: 'Goals',
 };
 
 /**
- * A region is a user-defined category, project or goal; each one is a zone of space.
+ * A space is a user-defined category, project or goal: one patch of the universe, with its own hue
+ * and its own constellation of tasks.
  * Optional fields are nullable (not undefined) because the Rust side serialises `None` as `null`.
  */
-export const RegionSchema = z.object({
+export const SpaceSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1).max(80),
-  kind: RegionKindSchema,
+  kind: SpaceKindSchema,
   description: z.string().max(200).nullable(),
-  /** Index into `PALETTE.regionHues`; the hex is never stored. */
+  /** Index into `PALETTE.spaceHues`; the hex is never stored. */
   colorIndex: z.number().int().min(0),
   position: z.number().int(),
   /** Goals only. */
   targetDate: z.number().int().nullable(),
   createdAt: z.number().int(),
-  /** Archived regions are hidden from the scene but keep their tasks. */
+  /** Archived spaces are hidden from the scene but keep their tasks. */
   archivedAt: z.number().int().nullable(),
 });
-export type Region = z.infer<typeof RegionSchema>;
+export type Space = z.infer<typeof SpaceSchema>;
 
 export const TaskArraySchema = z.array(TaskSchema);
-export const RegionArraySchema = z.array(RegionSchema);
+export const SpaceArraySchema = z.array(SpaceSchema);
 
 /** Fields a user may change on an existing task. */
-export type TaskPatch = Partial<Pick<Task, 'title' | 'notes' | 'priority' | 'dueAt' | 'completedAt' | 'regionId' | 'tags'>>;
+export type TaskPatch = Partial<Pick<Task, 'title' | 'notes' | 'priority' | 'dueAt' | 'completedAt' | 'spaceId' | 'tags'>>;
 
-/** Fields a user may change on an existing region. */
-export type RegionPatch = Partial<Pick<Region, 'name' | 'kind' | 'description' | 'colorIndex' | 'targetDate' | 'archivedAt'>>;
+/** Fields a user may change on an existing space. */
+export type SpacePatch = Partial<Pick<Space, 'name' | 'kind' | 'description' | 'colorIndex' | 'targetDate' | 'archivedAt'>>;
 
 export const isCompleted = (t: Task): boolean => t.completedAt !== null;

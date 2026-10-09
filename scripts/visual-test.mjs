@@ -118,7 +118,7 @@ const shot = async (page, name, opts = {}) => {
   return buf;
 };
 
-// 1. Four-region universe.
+// 1. Four-space universe.
 {
   const page = await open('seed=demo');
   const titleRoom = () =>
@@ -157,17 +157,17 @@ const shot = async (page, name, opts = {}) => {
   await page.waitForTimeout(2000);
   await shot(page, '01-universe.png');
   const zones = await page.$$eval('.zone-name', (els) => els.map((e) => e.textContent));
-  check('universe shows four regions', zones.length === 4, zones.join(', '));
+  check('universe shows four spaces', zones.length === 4, zones.join(', '));
 
-  // 2. Zoomed into one region.
-  await page.click('.region-row >> text=Product Launch');
+  // 2. Zoomed into one space.
+  await page.click('.space-row >> text=Product Launch');
   await page.waitForTimeout(400);
   await page.mouse.move(760, 420);
   for (let i = 0; i < 6; i++) await page.mouse.wheel(0, -160);
   await page.waitForTimeout(2500);
-  await shot(page, '02-region-zoomed.png');
+  await shot(page, '02-space-zoomed.png');
   const visibleLabels = await page.$$eval('.orb-label[data-visible="true"]', (els) => els.length);
-  check('zoomed region shows task labels', visibleLabels >= 3, `${visibleLabels} visible`);
+  check('zoomed space shows task labels', visibleLabels >= 3, `${visibleLabels} visible`);
 
   // Clipping check on the whole universe without DOM text.
   const off = await open('seed=demo&labels=off');
@@ -222,7 +222,7 @@ const shot = async (page, name, opts = {}) => {
   await page.close();
 }
 
-// Dense region: visible labels never overlap.
+// Dense space: visible labels never overlap.
 {
   const page = await open('seed=dense60');
   await page.mouse.move(760, 420);
@@ -243,7 +243,7 @@ const shot = async (page, name, opts = {}) => {
     }
     return { visible: rs.length, overlaps };
   });
-  check('dense region labels do not overlap', res.overlaps === 0 && res.visible > 0, JSON.stringify(res));
+  check('dense space labels do not overlap', res.overlaps === 0 && res.visible > 0, JSON.stringify(res));
   await page.close();
 }
 
@@ -301,7 +301,7 @@ const shot = async (page, name, opts = {}) => {
 {
   const page = await open('seed=reorder', { reducedMotion: 'no-preference' });
   await page.waitForTimeout(8000);
-  await page.click('.region-row >> text=NID-OCR');
+  await page.click('.space-row >> text=NID-OCR');
   await page.waitForTimeout(600);
   await page.fill('.task-input input', 'Late task');
   await page.keyboard.press('Enter');
@@ -314,11 +314,11 @@ const shot = async (page, name, opts = {}) => {
   await page.keyboard.press('Control+Shift+N');
   await page.waitForTimeout(400);
   await page.keyboard.type('RFE');
-  await page.click('.segmented[aria-label="Region kind"] button:has-text("Project")');
-  await page.click('.region-form button[type="submit"]');
+  await page.click('.segmented[aria-label="Space kind"] button:has-text("Project")');
+  await page.click('.space-form button[type="submit"]');
   await page.waitForTimeout(800);
   await page.keyboard.press('Escape');
-  await page.click('.region-row >> text=NID-OCR');
+  await page.click('.space-row >> text=NID-OCR');
   await page.waitForTimeout(2500);
   const res = await page.evaluate(() => {
     const centre = (el) => {
@@ -335,7 +335,7 @@ const shot = async (page, name, opts = {}) => {
     zones.sort((a, b) => a.d - b.d);
     return zones[0];
   });
-  check('orbs follow a region reorder after a focus change', res?.name === 'NID-OCR', res ? `nearest zone: ${res.name}` : 'label missing');
+  check('orbs follow a space reorder after a focus change', res?.name === 'NID-OCR', res ? `nearest zone: ${res.name}` : 'label missing');
   await page.close();
 }
 
@@ -361,7 +361,7 @@ const shot = async (page, name, opts = {}) => {
         requestAnimationFrame(tick);
       }),
   );
-  const orbs = await page.$$eval('.region-count', (els) => els.reduce((s, e) => s + Number(e.textContent), 0));
+  const orbs = await page.$$eval('.space-count', (els) => els.reduce((s, e) => s + Number(e.textContent), 0));
   info('stress fps', `${fps.toFixed(1)} fps with ${orbs} tasks on ${renderer}`);
   await shot(page, '07-stress.png');
   await page.close();

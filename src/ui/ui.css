@@ -23,7 +23,7 @@
   --radius: 10px;
   --titlebar-h: 38px;
   --sidebar-w: 232px;
-  --region: var(--text-muted);
+  --space: var(--text-muted);
   color-scheme: dark;
 }
 
@@ -143,7 +143,7 @@ kbd {
   flex: none;
 }
 
-.titlebar-region {
+.titlebar-space {
   color: var(--text-faint);
   font-weight: 400;
   overflow: hidden;
@@ -219,7 +219,7 @@ kbd {
   padding: 0 10px 8px;
 }
 
-.region-nav {
+.space-nav {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -230,7 +230,7 @@ kbd {
   min-height: 0;
 }
 
-.region-group {
+.space-group {
   margin: 10px 10px 4px;
   padding-top: 8px;
   border-top: 1px solid var(--border);
@@ -239,17 +239,17 @@ kbd {
   text-transform: uppercase;
   color: var(--text-ghost);
 }
-.region-nav > .region-group:first-child {
+.space-nav > .space-group:first-child {
   margin-top: 0;
   padding-top: 0;
   border-top: 0;
 }
 
-.region-row-wrap {
+.space-row-wrap {
   position: relative;
 }
 
-.region-row {
+.space-row {
   position: relative;
   width: 100%;
   height: 34px;
@@ -263,13 +263,13 @@ kbd {
   cursor: pointer;
   text-align: left;
 }
-.region-row:hover {
+.space-row:hover {
   background: var(--hover);
 }
-.region-row.is-active {
+.space-row.is-active {
   background: var(--active-row);
 }
-.region-row.is-active::before {
+.space-row.is-active::before {
   content: '';
   position: absolute;
   left: 0;
@@ -277,29 +277,29 @@ kbd {
   bottom: 8px;
   width: 2px;
   border-radius: 1px;
-  background: var(--region);
+  background: var(--space);
 }
-.region-row.is-archived {
+.space-row.is-archived {
   cursor: default;
   opacity: 0.6;
 }
-.region-dot {
+.space-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   flex: none;
-  background: var(--region);
+  background: var(--space);
 }
 /* Same kind shapes as the scene: diamond = project, ring = goal, dot = category. */
-.region-dot[data-kind='project'] {
+.space-dot[data-kind='project'] {
   border-radius: 1px;
   transform: rotate(45deg) scale(0.85);
 }
-.region-dot[data-kind='goal'] {
+.space-dot[data-kind='goal'] {
   background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--region);
+  box-shadow: inset 0 0 0 1.5px var(--space);
 }
-.region-name {
+.space-name {
   flex: 1;
   min-width: 0;
   overflow: hidden;
@@ -309,12 +309,12 @@ kbd {
   font-weight: var(--side-name-weight);
   color: var(--side-name-color);
 }
-.region-count {
+.space-count {
   font-size: var(--side-count-size);
   color: var(--side-count-color);
   font-variant-numeric: tabular-nums;
 }
-.region-actions {
+.space-actions {
   position: absolute;
   right: 34px;
   top: 6px;
@@ -322,11 +322,11 @@ kbd {
   gap: 2px;
   opacity: 0;
 }
-.region-row-wrap:hover .region-actions,
-.region-actions:focus-within {
+.space-row-wrap:hover .space-actions,
+.space-actions:focus-within {
   opacity: 1;
 }
-.region-action {
+.space-action {
   width: 22px;
   height: 22px;
   border-radius: 5px;
@@ -336,18 +336,18 @@ kbd {
   cursor: pointer;
   line-height: 1;
 }
-.region-action:hover {
+.space-action:hover {
   color: var(--text);
   background: var(--surface);
 }
-.region-restore {
+.space-restore {
   border: 0;
   background: transparent;
   color: var(--text-muted);
   font-size: 12px;
   cursor: pointer;
 }
-.region-restore:hover {
+.space-restore:hover {
   color: var(--text);
 }
 
@@ -363,7 +363,7 @@ kbd {
   line-height: 1.45;
 }
 
-.region-add {
+.space-add {
   margin-top: 6px;
   height: 32px;
   text-align: left;
@@ -374,15 +374,15 @@ kbd {
   color: var(--text-faint);
   cursor: pointer;
 }
-.region-add:hover {
+.space-add:hover {
   color: var(--text);
   background: var(--hover);
 }
 
-.region-archive {
+.space-archive {
   margin-top: 10px;
 }
-.region-archive-toggle {
+.space-archive-toggle {
   border: 0;
   background: transparent;
   color: var(--text-ghost);
@@ -390,7 +390,7 @@ kbd {
   padding: 4px 10px;
   cursor: pointer;
 }
-.region-archive-toggle:hover {
+.space-archive-toggle:hover {
   color: var(--text-muted);
 }
 
@@ -430,7 +430,7 @@ kbd {
   transition: border-color 0.15s;
 }
 .task-input:focus-within {
-  border-color: color-mix(in srgb, var(--region) 40%, transparent);
+  border-color: color-mix(in srgb, var(--space) 40%, transparent);
 }
 .task-input input {
   flex: 1;
@@ -631,7 +631,7 @@ kbd {
   box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--text-muted);
 }
 
-.region-form {
+.space-form {
   display: flex;
   flex-direction: column;
   gap: 14px;

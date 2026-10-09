@@ -1,11 +1,11 @@
-import type { Region, RegionKind, Task } from '../contracts/task';
+import type { Space, SpaceKind, Task } from '../contracts/task';
 import { CAMERA, CLUSTER, CONSTELLATION, MATERIALS } from '../contracts/tokens';
 
 export type Vec3 = [number, number, number];
 
 export interface OrbPlacement {
   task: Task;
-  regionId: string;
+  spaceId: string;
   index: number;
   rest: Vec3;
   radius: number;
@@ -14,7 +14,7 @@ export interface OrbPlacement {
 }
 
 export interface Zone {
-  region: Region;
+  space: Space;
   center: Vec3;
   radius: number;
   orbs: OrbPlacement[];
@@ -29,9 +29,9 @@ export interface Rect {
   maxY: number;
 }
 
-/** All regions of one kind: drawn as an outlined group with its own title. */
+/** All spaces of one kind: drawn as an outlined group with its own title. */
 export interface Cluster {
-  kind: RegionKind;
+  kind: SpaceKind;
   count: number;
   rect: Rect;
 }
@@ -66,20 +66,20 @@ export function orbRadius(task: Task): number {
 }
 
 /**
- * Regions are grouped by kind (in the order they arrive) into clusters laid side by side with their tops
+ * Spaces are grouped by kind (in the order they arrive) into clusters laid side by side with their tops
  * aligned. Inside a cluster, zones sit on an offset grid (one zone roughly fills the screen at the default
  * distance); tasks sit on a golden-angle spiral inside their zone, first task closest to the hub.
  */
-export function computeLayout(regions: Region[], tasksByRegion: Record<string, Task[]>): SceneLayout {
-  const maxCount = Math.max(1, ...regions.map((g) => tasksByRegion[g.id]?.length ?? 0));
+export function computeLayout(spaces: Space[], tasksBySpace: Record<string, Task[]>): SceneLayout {
+  const maxCount = Math.max(1, ...spaces.map((g) => tasksBySpace[g.id]?.length ?? 0));
   const zoneRadius = spiralRadius(maxCount) + 1.2;
   const cell = zoneRadius * 2 + CONSTELLATION.zoneGap;
 
-  const groups: { kind: RegionKind; regions: Region[] }[] = [];
-  for (const region of regions) {
-    const group = groups.find((g) => g.kind === region.kind);
-    if (group) group.regions.push(region);
-    else groups.push({ kind: region.kind, regions: [region] });
+  const groups: { kind: SpaceKind; spaces: Space[] }[] = [];
+  for (const space of spaces) {
+    const group = groups.find((g) => g.kind === space.kind);
+    if (group) group.spaces.push(space);
+    else groups.push({ kind: space.kind, spaces: [space] });
   }
 
   const zones: Zone[] = [];
@@ -88,13 +88,13 @@ export function computeLayout(regions: Region[], tasksByRegion: Record<string, T
   let cursorX = 0;
 
   for (const group of groups) {
-    const cols = Math.max(1, Math.ceil(Math.sqrt(group.regions.length)));
-    const local = group.regions.map((region, i) => {
+    const cols = Math.max(1, Math.ceil(Math.sqrt(group.spaces.length)));
+    const local = group.spaces.map((space, i) => {
       const col = i % cols;
       const row = Math.floor(i / cols);
-      const radius = spiralRadius(tasksByRegion[region.id]?.length ?? 0) + CONSTELLATION.orbitPadding;
+      const radius = spiralRadius(tasksBySpace[space.id]?.length ?? 0) + CONSTELLATION.orbitPadding;
       // Offset alternate rows for a less grid-like, more celestial arrangement.
-      return { region, x: col * cell * 1.15 + (row % 2) * cell * 0.45, y: -row * cell * 0.9, radius };
+      return { space, x: col * cell * 1.15 + (row % 2) * cell * 0.45, y: -row * cell * 0.9, radius };
     });
     const pad = CLUSTER.padding;
     const minX = Math.min(...local.map((z) => z.x - z.radius)) - pad;
@@ -103,9 +103,9 @@ export function computeLayout(regions: Region[], tasksByRegion: Record<string, T
     const maxY = Math.max(...local.map((z) => z.y + z.radius / CONSTELLATION.ellipseX + CLUSTER.zoneTitleRoom)) + pad;
     const dx = cursorX - minX;
     const dy = -maxY;
-    clusters.push({ kind: group.kind, count: group.regions.length, rect: { minX: minX + dx, maxX: maxX + dx, minY: minY + dy, maxY: 0 } });
+    clusters.push({ kind: group.kind, count: group.spaces.length, rect: { minX: minX + dx, maxX: maxX + dx, minY: minY + dy, maxY: 0 } });
     cursorX = maxX + dx + cell * CLUSTER.gapCells;
-    for (const z of local) zones.push(placeZone(z.region, z.x + dx, z.y + dy, z.radius, tasksByRegion[z.region.id] ?? [], byTaskId));
+    for (const z of local) zones.push(placeZone(z.space, z.x + dx, z.y + dy, z.radius, tasksBySpace[z.space.id] ?? [], byTaskId));
   }
 
   const m = CAMERA.boundsMargin;
@@ -123,15 +123,15 @@ export function computeLayout(regions: Region[], tasksByRegion: Record<string, T
   };
 }
 
-function placeZone(region: Region, cx: number, cy: number, radius: number, tasks: Task[], byTaskId: Map<string, OrbPlacement>): Zone {
-  const spin = hash01(region.id) * Math.PI * 2;
+function placeZone(space: Space, cx: number, cy: number, radius: number, tasks: Task[], byTaskId: Map<string, OrbPlacement>): Zone {
+  const spin = hash01(space.id) * Math.PI * 2;
 
   const orbs = tasks.map<OrbPlacement>((task, i) => {
     const r = CONSTELLATION.spiralSpacing * Math.sqrt(i + CONSTELLATION.spiralStart);
     const a = spin + i * GOLDEN_ANGLE;
     const placement: OrbPlacement = {
       task,
-      regionId: region.id,
+      spaceId: space.id,
       index: i,
       rest: [
         cx + Math.cos(a) * r * CONSTELLATION.ellipseX,
@@ -159,7 +159,7 @@ function placeZone(region: Region, cx: number, cy: number, radius: number, tasks
     return best;
   });
 
-  return { region, center: [cx, cy, 0], radius, orbs, edges };
+  return { space, center: [cx, cy, 0], radius, orbs, edges };
 }
 
 const FOV_TAN = Math.tan((CAMERA.fov * Math.PI) / 360);

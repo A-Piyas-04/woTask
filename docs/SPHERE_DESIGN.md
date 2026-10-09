@@ -1,6 +1,6 @@
-# woTask — Regions, Spheres & Constellation Design
+# woTask — Spaces, Spheres & Constellation Design
 
-How the 3D view works: what every sphere, line and zone means, how region, priority and completion are encoded, how regions are laid out, and how to change any of it.
+How the 3D view works: what every sphere, line and zone means, how space, priority and completion are encoded, how spaces are laid out, and how to change any of it.
 
 All numbers below come from `src/contracts/tokens.ts`. Change them there, never in components.
 
@@ -12,24 +12,24 @@ The whole app is a small universe:
 
 | On screen | Represents | Data |
 |---|---|---|
-| **Zone** (a patch of space with a faint floor disc and a title) | One **region**: a category, project or goal | `Region` in `src/contracts/task.ts` |
-| **Hub** (small glowing sphere at the centre of a zone) | The region itself, its anchor point | `Region.colorIndex` |
+| **Zone** (a patch of space with a faint floor disc and a title) | One **space**: a category, project or goal | `Space` in `src/contracts/task.ts` |
+| **Hub** (small glowing sphere at the centre of a zone) | The space itself, its anchor point | `Space.colorIndex` |
 | **Task sphere** (glass ball with a glowing core) | One **task** | `Task` |
-| **Light lines** | Which tasks belong to which region | derived, not stored |
+| **Light lines** | Which tasks belong to which space | derived, not stored |
 | **Label under a sphere** | Task title, due date, tags | DOM text (never WebGL) |
 | **Background** (stars, nebula, dust) | Nothing; pure atmosphere and depth cues | procedural, no files |
 
-You never "open" a region in the 3D view. Every region is always present as its own zone; choosing a region flies the camera to it.
+You never "open" a space in the 3D view. Every space is always present as its own zone; choosing a space flies the camera to it.
 
 ### The colour rule
 
-> **Hue = region. Everything else = priority. Desaturation = completed.**
+> **Hue = space. Everything else = priority. Desaturation = completed.**
 
 A sphere's colour tells you *where* a task lives, never how urgent it is. Urgency is carried by size, core brightness, finish and extras (halo, ring), all of which survive a grayscale screenshot.
 
 ---
 
-## 2. Regions
+## 2. Spaces
 
 ### Kinds
 | Kind | Use it for | Zone subtitle |
@@ -40,21 +40,21 @@ A sphere's colour tells you *where* a task lives, never how urgent it is. Urgenc
 
 Fields: name (1–80 chars), kind, optional one-line purpose (≤ 200 chars), colour (one of 8 hues), optional target date (goals), archived flag.
 
-Sidebar, `Ctrl+1…9`, `Ctrl+←/→` and the zone grid all use the same display order: projects first, then goals, then categories, each group by position (`visibleRegions()` in `src/state/store.ts`).
+Sidebar, `Ctrl+1…9`, `Ctrl+←/→` and the zone grid all use the same display order: projects first, then goals, then categories, each group by position (`visibleSpaces()` in `src/state/store.ts`).
 
 ### Lifecycle
-- **First run** shows the onboarding card ("What are you working on?"): name, kind and colour. There is no seeded Inbox. Development builds (`npm run dev`) seed four demo regions instead: Product Launch (project), Health (goal, 45 days out), পড়াশোনা (category), Backlog (category).
-- **New region**: `+ New region` in the sidebar, `Ctrl+Shift+N`, or the command palette.
+- **First run** shows the onboarding card ("What are you working on?"): name, kind and colour. There is no seeded Inbox. Development builds (`npm run dev`) seed four demo spaces instead: Product Launch (project), Health (goal, 45 days out), পড়াশোনা (category), Backlog (category).
+- **New space**: `+ New space` in the sidebar, `Ctrl+Shift+N`, or the command palette.
 - **Edit**: hover a sidebar row and press `⋯`. Changes save as you type.
-- **Archive** hides a region and its zone but keeps its tasks; restore it from *Archived* at the bottom of the sidebar.
-- **Delete** removes the region **and its tasks** (`Ctrl+Z` undoes). The last remaining region can't be deleted; the sidebar explains why inline.
+- **Archive** hides a space and its zone but keeps its tasks; restore it from *Archived* at the bottom of the sidebar.
+- **Delete** removes the space **and its tasks** (`Ctrl+Z` undoes). The last remaining space can't be deleted; the sidebar explains why inline.
 
-### Region colour
-Eight muted hues, deliberately equal in lightness and chroma (OKLCH, verified by `npm run test:palette`) so no region shouts louder than another:
+### Space colour
+Eight muted hues, deliberately equal in lightness and chroma (OKLCH, verified by `npm run test:palette`) so no space shouts louder than another:
 
 `#7490BD` `#5F9E8F` `#C09562` `#B57D8E` `#8E83BC` `#6B9DB0` `#B9796B` `#8EA06E`
 
-New regions take the next unused hue. Each hue expands into a ramp (`regionRamp()` in `src/scene/materials/materials.ts`, amounts in `RAMP`):
+New spaces take the next unused hue. Each hue expands into a ramp (`spaceRamp()` in `src/scene/materials/materials.ts`, amounts in `RAMP`):
 
 | Role | Formula | Used by |
 |---|---|---|
@@ -69,23 +69,23 @@ New regions take the next unused hue. Each hue expands into a ramp (`regionRamp(
 ## 3. Zones
 
 ### What a zone shows
-- **Title** above the zone: region name in spaced capitals (13 px / 500, `+0.22em`) in the region's text colour, and the kind-specific subtitle (10 px). Titles always stay at least 24 px below the canvas top when the camera frames a zone.
-- **Floor disc**: a radial gradient in the region hue (alpha 0.05 at the centre, fading to 0) plus a 1 px hairline at 0.10. Inactive zones are drawn at ×0.4.
-- **Hub**: a small glowing sphere (radius 0.3, intensity 1.6) in the region hue. **Clicking the hub makes that region active.**
+- **Title** above the zone: space name in spaced capitals (13 px / 500, `+0.22em`) in the space's text colour, and the kind-specific subtitle (10 px). Titles always stay at least 24 px below the canvas top when the camera frames a zone.
+- **Floor disc**: a radial gradient in the space hue (alpha 0.05 at the centre, fading to 0) plus a 1 px hairline at 0.10. Inactive zones are drawn at ×0.4.
+- **Hub**: a small glowing sphere (radius 0.3, intensity 1.6) in the space hue. **Clicking the hub makes that space active.**
 - **Goal arc** (goals only): a thin ring around the hub at 40% opacity that fills clockwise from 12 o'clock with the completed fraction. Kept below the bloom threshold.
-- **Active zone**: title fully opaque, lines at 0.22 opacity; inactive zones are dimmed (title 55%, lines 0.10). The nebula takes at most 8% of the active region's hue.
+- **Active zone**: title fully opaque, lines at 0.22 opacity; inactive zones are dimmed (title 55%, lines 0.10). The nebula takes at most 8% of the active space's hue.
 
 ### How zones are arranged in space
 `computeLayout()` in `src/scene/layout.ts`:
 
-1. Find the region with the most visible tasks; every zone gets the same cell so the grid stays regular:
+1. Find the space with the most visible tasks; every zone gets the same cell so the grid stays regular:
    `zoneRadius = spiralRadius(maxTaskCount) + 1.2`
 2. Cell size: `cell = zoneRadius × 2 + CONSTELLATION.zoneGap` (`zoneGap = 2.5`).
-3. Columns: `ceil(√regionCount)`: 4 regions → 2×2, 5–9 regions → 3 columns.
+3. Columns: `ceil(√spaceCount)`: 4 spaces → 2×2, 5–9 spaces → 3 columns.
 4. Positions are staggered so it reads as a sky, not a spreadsheet:
    - `x = col × cell × 1.15 + (row is odd ? cell × 0.45 : 0)`
    - `y = −row × cell × 0.9`
-5. The first region in display order is always at the origin `(0, 0)`.
+5. The first space in display order is always at the origin `(0, 0)`.
 
 The camera can pan anywhere inside the bounding box of all zones plus `CAMERA.boundsMargin` (8 units).
 
@@ -97,16 +97,16 @@ Component: `src/scene/objects/TaskOrb.tsx`.
 
 ### Anatomy
 ```
-   ╭───────────╮   ← glass shell: transmissive, clearcoated, tinted by the region hue
-   │     ●     │   ← glowing core: region core colour, brightness = priority
+   ╭───────────╮   ← glass shell: transmissive, clearcoated, tinted by the space hue
+   │     ●     │   ← glowing core: space core colour, brightness = priority
    ╰───────────╯
   ◜─────────────◝  ← extras: halo (P2), equatorial ring (P3), overdue ring, selection ring
    Task title       ← DOM label: title (max 2 lines, 150 px), due date, up to 2 tags
    Today · #tag
 ```
 
-- **Glass shell**: `MeshPhysicalMaterial`, `ior 1.45`, attenuation in the region hue. Iridescence is kept low (0.25) because an oil-film sheen adds hues that aren't the region's.
-- **Core**: unlit material in the region core colour; intensity above 1 feeds bloom. ACES tone mapping runs once at the end of the post chain, so cores glow without clipping to white.
+- **Glass shell**: `MeshPhysicalMaterial`, `ior 1.45`, attenuation in the space hue. Iridescence is kept low (0.25) because an oil-film sheen adds hues that aren't the space's.
+- **Core**: unlit material in the space core colour; intensity above 1 feeds bloom. ACES tone mapping runs once at the end of the post chain, so cores glow without clipping to white.
 
 ### Priority, without colour
 | Priority | Radius | Core intensity | Roughness | Transmission | Extra |
@@ -131,9 +131,9 @@ How to set priority:
 | Idle | — | Floats gently in place |
 | Hover | Mouse over | Scale ×1.14, core ×1.25, label shown |
 | Pressed | Mouse down | Scale ×0.9 (0.06 s squish) |
-| Selected | Click / `↑↓` / palette | Scale ×1.24, moves 0.6 toward the camera, core ×1.4, ring in the region hue, label shown; camera flies to it |
+| Selected | Click / `↑↓` / palette | Scale ×1.24, moves 0.6 toward the camera, core ×1.4, ring in the space hue, label shown; camera flies to it |
 | Overdue | Due date passed, not done | Thin ring in `#D4705F` at 70%, slowly rotating; label always shown, date in the alert colour |
-| Completed | Click a selected sphere / `Space` / editor | Shockwave ring in the region hue (0.7 s, peak 0.5, ease-out). Then: colour mix(base, `#6B7280`, 0.75), core 0.4, roughness 0.45, radius 0.40, title struck through at 45% |
+| Completed | Click a selected sphere / `Space` / editor | Shockwave ring in the space hue (0.7 s, peak 0.5, ease-out). Then: colour mix(base, `#6B7280`, 0.75), core 0.4, roughness 0.45, radius 0.40, title struck through at 45% |
 | Entering | Task created / app start | Grows from nothing and rises out of depth, 40 ms stagger |
 
 Hide completed tasks with `H` (or the sidebar toggle).
@@ -143,22 +143,22 @@ Labels are DOM text at a constant size (12 px / 500 title, 10.5 px meta, Inter b
 
 - the sphere is selected or hovered;
 - the task is high priority or overdue;
-- it is in the active region and the camera is closer than 24 units.
+- it is in the active space and the camera is closer than 24 units.
 
 Labels fade with camera distance (smoothstep between 20 and 34) and take 150 ms to fade in or out. A screen-space pass (`LabelCuller` in `src/scene/labels.ts`) hides the lower-ranked of any two overlapping labels. Rank: selected > hovered > priority > overdue. The pass considers at most 60 labels and is skipped while the camera moves fast. Visibility is written straight to `style.opacity` from `useFrame`, never through React state.
 
 ### Interaction summary
 | Action | Result |
 |---|---|
-| Click sphere | Select it (and make its region active) |
+| Click sphere | Select it (and make its space active) |
 | Click selected sphere again | Toggle complete |
 | Double-click sphere | Open the editor panel |
-| Click hub | Make that region active |
+| Click hub | Make that space active |
 | Click empty space | Deselect |
-| `↑` / `↓` (or `J` / `K`) | Select previous/next task in the active region |
+| `↑` / `↓` (or `J` / `K`) | Select previous/next task in the active space |
 | `Alt+↑` / `Alt+↓` | Reorder the selected task |
 | `Del` | Delete (toast offers Undo) |
-| `?` | All shortcuts, grouped Navigation / Tasks / Regions / View |
+| `?` | All shortcuts, grouped Navigation / Tasks / Spaces / View |
 
 A drag never counts as a click: if the pointer moves more than 5 px between press and release, the release is ignored (`pointerState.dragged` in `src/scene/interaction.ts`).
 
@@ -174,13 +174,13 @@ Task `i` (0-based) in a zone with centre `(cx, cy)`:
 
 ```
 r     = spiralSpacing × √(i + spiralStart)        // 1.95 × √(i + 1.1)
-angle = regionSpin + i × 137.5°                     // golden angle
+angle = spaceSpin + i × 137.5°                     // golden angle
 x     = cx + cos(angle) × r × ellipseX              // ellipseX = 1.25 (wider than tall)
 y     = cy + sin(angle) × r
 z     = (hash(taskId) − 0.5) × depthJitter          // ±0.9 depth variation
 ```
 
-This is the sunflower-seed pattern: spheres never overlap, the cluster grows evenly, and adding a task barely disturbs the rest. `regionSpin` is a per-region hash so zones don't look identical. Moving a task to another region in the editor makes its sphere fly across space into the new zone.
+This is the sunflower-seed pattern: spheres never overlap, the cluster grows evenly, and adding a task barely disturbs the rest. `spaceSpin` is a per-space hash so zones don't look identical. Moving a task to another space in the editor makes its sphere fly across space into the new zone.
 
 ### Floating
 With ambient motion on, each sphere bobs around its rest position on three sine waves (amplitude `[0.16, 0.22, 0.14]`, speed `[0.55, 0.42, 0.37]` rad/s, phases from the task id).
@@ -189,7 +189,7 @@ With ambient motion on, each sphere bobs around its rest position on three sine 
 
 ## 6. Light lines
 
-Component: `src/scene/objects/Constellation.tsx`. Each sphere connects to the nearest of: the hub, or any sphere earlier in the order. The result is a crossing-free tree with one line per task. Lines use the region hue at 0.22 opacity (active) or 0.10 (inactive), slightly brighter at the parent end, and follow the floating spheres every frame. They carry no data.
+Component: `src/scene/objects/Constellation.tsx`. Each sphere connects to the nearest of: the hub, or any sphere earlier in the order. The result is a crossing-free tree with one line per task. Lines use the space hue at 0.22 opacity (active) or 0.10 (inactive), slightly brighter at the parent end, and follow the floating spheres every frame. They carry no data.
 
 ---
 
@@ -204,7 +204,7 @@ Component: `src/scene/CameraRig.tsx`.
 | `Shift` + wheel | Pan horizontally |
 | Mouse position | Camera sways up to 1.1 × 0.7 units → parallax |
 | Select a task | Camera flies to that sphere |
-| Choose a region (sidebar, `Ctrl+←/→`, `Ctrl+1…9`, hub click) | Camera flies to that zone, framed so the title clears the top edge by 24 px and the zone clears the quick-capture bar. Choosing the already-active region re-centres on it |
+| Choose a space (sidebar, `Ctrl+←/→`, `Ctrl+1…9`, hub click) | Camera flies to that zone, framed so the title clears the top edge by 24 px and the zone clears the quick-capture bar. Choosing the already-active space re-centres on it |
 
 ---
 
@@ -215,7 +215,7 @@ Component: `src/scene/objects/ParallaxBackground.tsx`. Nothing is loaded from di
 | Layer | Depth (z) | Content |
 |---|---|---|
 | Backdrop | −110 | Opaque neutral gradient (`#0A0C11` → `#131823`), soft grey blobs, vignette 0.35. Half-float texture (no 8-bit banding). Also what the glass refracts |
-| Far / near nebula | −70 / −38 | Transparent grey cloud layers (alpha 0.10), ≤ 8% of the active region's hue |
+| Far / near nebula | −70 / −38 | Transparent grey cloud layers (alpha 0.10), ≤ 8% of the active space's hue |
 | Stars | −95 … −30 | 700 / 1500 / 2600 points, `#FFF3E0` / `#DCE7FF` at 35–70% |
 | Dust | −6 … +5 | 420 faint particles, slow drift |
 
@@ -247,8 +247,8 @@ Post-processing (High/Medium): bloom (intensity 0.55, threshold 0.88, smoothing 
 | `src/scene/objects/Constellation.tsx` | One zone: disc, hairline, hub, goal arc, lines, title |
 | `src/scene/objects/ParallaxBackground.tsx` | Backdrop, nebulae, stars, dust |
 | `src/scene/effects/Composer.tsx` | Bloom, chromatic aberration, vignette, ACES, SMAA |
-| `src/scene/materials/materials.ts` | Region ramp, material factories, shared geometries, procedural textures |
-| `src/app/App.tsx` | Groups tasks per region and passes them to the scene |
+| `src/scene/materials/materials.ts` | Space ramp, material factories, shared geometries, procedural textures |
+| `src/app/App.tsx` | Groups tasks per space and passes them to the scene |
 
 The scene never imports the store or the database (`src/state`, `src/data`); it only renders what `App.tsx` passes in.
 

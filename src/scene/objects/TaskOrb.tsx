@@ -7,17 +7,17 @@ import { CONSTELLATION, MATERIALS, MOTION, PALETTE } from '../../contracts/token
 import { FRAME, pointerState, sceneSeconds, type PositionRegistry } from '../interaction';
 import { useLabelEntry, type LabelRegistry } from '../labels';
 import type { OrbPlacement } from '../layout';
-import { createGlassMaterial, createGlowMaterial, sharedGeometry, type RegionRamp } from '../materials/materials';
+import { createGlassMaterial, createGlowMaterial, sharedGeometry, type SpaceRamp } from '../materials/materials';
 import { formatDue } from './labelFormat';
 
 export interface TaskOrbProps {
   orb: OrbPlacement;
   selected: boolean;
-  ramp: RegionRamp;
+  ramp: SpaceRamp;
   ambient: boolean;
   reducedMotion: boolean;
   segments: number;
-  /** In the active region. Other orbs only mount a label when important, selected or hovered. */
+  /** In the active space. Other orbs only mount a label when important, selected or hovered. */
   labelEligible: boolean;
   registry: PositionRegistry;
   labels: LabelRegistry;
@@ -34,7 +34,7 @@ export const isOverdue = (dueAt: number | null, completedAt: number | null, now:
   dueAt !== null && completedAt === null && dueAt < now;
 
 /**
- * One task. Hue = its region (every state). Priority = size, core luminance, glass finish and motion.
+ * One task. Hue = its space (every state). Priority = size, core luminance, glass finish and motion.
  * Completed = desaturated toward neutral. Overdue = thin alert ring, the one permitted exception.
  */
 export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
@@ -131,7 +131,7 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
   const label = useLabelEntry(props.labels, task.id, labelEl, {
     pos: livePos,
     offsetY: 0,
-    regionId: orb.regionId,
+    spaceId: orb.spaceId,
     selected,
     hovered: false,
     important: false,
@@ -209,7 +209,7 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
     tmp.core.set(isDone ? r.completed : r.core).multiplyScalar(tmp.intensity.v * breath);
     moving = easing.dampC(coreMat.color, tmp.core, MOTION.color.smoothTime * k, dt) || moving;
 
-    // Glass: tinted by the region hue; finish carries priority.
+    // Glass: tinted by the space hue; finish carries priority.
     moving = easing.dampC(glass.attenuationColor, tmp.c.set(isDone ? r.completed : r.base), MOTION.color.smoothTime * k, dt) || moving;
     moving = easing.dampC(glass.color, tmp.c.set(isDone ? r.completedGlass : r.glass), MOTION.color.smoothTime * k, dt) || moving;
     moving = easing.damp(glass, 'roughness', isDone ? MATERIALS.completed.roughness : s.roughness, MOTION.color.smoothTime * k, dt) || moving;
@@ -244,7 +244,7 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
       if (floating) od.rotation.z += dt * MATERIALS.overdueRing.spin;
     }
 
-    // Selection ring in the region hue.
+    // Selection ring in the space hue.
     const sr = ring.current;
     if (sr) {
       moving = easing.damp(ringMat, 'opacity', p.selected ? MATERIALS.ring.opacity : 0, MOTION.hover.smoothTime * k, dt) || moving;
@@ -255,7 +255,7 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
       if (floating) sr.rotation.y += dt * 0.6;
     }
 
-    // Completion shockwave in the region hue, ease-out.
+    // Completion shockwave in the space hue, ease-out.
     const bu = burst.current;
     if (bu) {
       if (burstStart.current === -1) burstStart.current = t;
@@ -284,7 +284,7 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
       le.selected = p.selected;
       le.hovered = hovered.current;
       le.important = (s.ring && !isDone) || isOverdueNow;
-      le.regionId = p.orb.regionId;
+      le.spaceId = p.orb.spaceId;
       le.rank = (p.selected ? 1000 : 0) + (hovered.current ? 500 : 0) + (isDone ? 0 : task.priority * 10) + (isOverdueNow ? 25 : 0);
     }
 

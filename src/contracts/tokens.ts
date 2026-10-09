@@ -1,22 +1,22 @@
 import type { QualityTier } from './events';
-import type { Priority, RegionKind } from './task';
+import type { Priority, SpaceKind } from './task';
 
 type Vec3 = [number, number, number];
 
 /**
- * Colour rule: hue identifies the region. Priority is carried by size, inner luminance, surface
- * finish and motion; completion by desaturation. The only non-region colours are `alert`
+ * Colour rule: hue identifies the space. Priority is carried by size, inner luminance, surface
+ * finish and motion; completion by desaturation. The only non-space colours are `alert`
  * (overdue) and `completedNeutral`; everything else in the chrome is neutral grey/white.
  */
 export const PALETTE = {
   /** Near-black, very slightly blue. Canvas clear colour and app background. */
   base: '#0A0C11',
   /**
-   * Regions store an index, never the hex, so existing entries must never move. The first eight are the
+   * Spaces store an index, never the hex, so existing entries must never move. The first eight are the
    * original muted set (OKLCH L ≈ 0.66, C ≈ 0.075); the rest vary lightness (0.60–0.74) and chroma
    * (≤ 0.13) as well as hue, picked greedily to maximise the smallest OKLab distance to every earlier entry.
    */
-  regionHues: [
+  spaceHues: [
     '#7490BD', '#5F9E8F', '#C09562', '#B57D8E', '#8E83BC', '#6B9DB0', '#B9796B', '#8EA06E',
     '#D38DD9', '#F1878F', '#40C59B', '#8EA5FD', '#2BBCE7', '#539344', '#9A7C2A', '#AC60A2',
     '#B3B144', '#0A8FA8', '#5F7BCE', '#BF5B71', '#4EAC6C', '#ED905E', '#2DA0DA', '#A89620',
@@ -24,7 +24,7 @@ export const PALETTE = {
   /** The one global alert colour (overdue). Do not introduce a second. */
   alert: '#D4705F',
   completedNeutral: '#6B7280',
-  /** Mix targets for the per-region ramp. */
+  /** Mix targets for the per-space ramp. */
   rampLight: '#EAF0F7',
   rampDark: '#0A0C11',
   white: '#FFFFFF',
@@ -32,17 +32,17 @@ export const PALETTE = {
     base: '#0A0C11',
     gradientTop: '#131823',
     vignette: 0.35,
-    /** Maximum share of the active region hue in the nebula. */
+    /** Maximum share of the active space hue in the nebula. */
     nebulaTint: 0.08,
     nebulaAlpha: 0.1,
-    /** Neutral nebula greys the region tint is mixed into. */
+    /** Neutral nebula greys the space tint is mixed into. */
     nebula: ['#2A3140', '#1E2430', '#343B4A'],
   },
   stars: ['#FFF3E0', '#DCE7FF'],
   starOpacity: [0.35, 0.7] as [number, number],
 } as const;
 
-/** How each region hue becomes a ramp: `mix(base, target, amount)`. */
+/** How each space hue becomes a ramp: `mix(base, target, amount)`. */
 export const RAMP = {
   /** Emissive core: lightened and desaturated so bloom reads as a glow, never a neon lamp. */
   core: { target: PALETTE.rampLight, amount: 0.45 },
@@ -54,7 +54,7 @@ export const RAMP = {
   completedGlass: { target: PALETTE.white, amount: 0.3 },
 } as const;
 
-/** Chrome colours (DOM). Neutral by design; region hue enters only via CSS variables. */
+/** Chrome colours (DOM). Neutral by design; space hue enters only via CSS variables. */
 export const UI = {
   text: 'rgba(232,238,245,0.92)',
   textStrong: 'rgba(232,238,245,0.88)',
@@ -95,7 +95,7 @@ export const MOTION = {
   color: { smoothTime: 0.2 },
   camera: { smoothTime: 0.35 },
   cameraFocus: { smoothTime: 0.6 },
-  /** Completion shockwave in the region hue, ease-out. */
+  /** Completion shockwave in the space hue, ease-out. */
   burst: { seconds: 0.7, peakOpacity: 0.5 },
   /** High-priority core breathing: intensity × (1 ± amount) at `hz`. Ambient motion only. */
   breathe: { amount: 0.12, hz: 0.45 },
@@ -125,7 +125,7 @@ export const MATERIALS = {
     ior: 1.45,
     clearcoat: 1,
     clearcoatRoughness: 0.05,
-    /** Kept low: a strong oil-film sheen adds hues that are not the region's. */
+    /** Kept low: a strong oil-film sheen adds hues that are not the space's. */
     iridescence: 0.25,
     iridescenceIOR: 1.3,
     iridescenceThicknessRange: [120, 400] as [number, number],
@@ -150,10 +150,10 @@ export const MATERIALS = {
   highRing: { radiusRatio: 1.22, tube: 0.012, opacity: 0.8 },
   /** Overdue: thin outer ring in `PALETTE.alert`, slowly rotating. */
   overdueRing: { radiusRatio: 1.42, tube: 0.011, opacity: 0.7, spin: 0.35 },
-  /** Selection ring in the region base hue. */
+  /** Selection ring in the space base hue. */
   ring: { radiusRatio: 1.32, tube: 0.016, opacity: 0.85 },
   hub: { radius: 0.3, intensity: 1.6 },
-  /** Goal progress arc around the hub: region hue at 40%, kept below the bloom threshold. The faint full track shows the remainder. */
+  /** Goal progress arc around the hub: space hue at 40%, kept below the bloom threshold. The faint full track shows the remainder. */
   goalArc: { radius: 0.62, width: 0.035, opacity: 0.4, trackOpacity: 0.12 },
   lines: { activeOpacity: 0.22, inactiveOpacity: 0.1, parentBoost: 1.2, childFade: 0.7 },
   /** Zone floor: radial-gradient disc plus a hairline boundary. */
@@ -167,16 +167,16 @@ export const MATERIALS = {
 } as const;
 
 /**
- * Shape identifies a region's kind, everywhere it appears (hub, zone boundary, label mark, sidebar dot);
- * hue still identifies the region itself.
+ * Shape identifies a space's kind, everywhere it appears (hub, zone boundary, label mark, sidebar dot);
+ * hue still identifies the space itself.
  */
-export const REGION_KIND_STYLE: Record<RegionKind, { hub: 'diamond' | 'orb'; boundary: 'solid' | 'double' | 'dashed' }> = {
+export const SPACE_KIND_STYLE: Record<SpaceKind, { hub: 'diamond' | 'orb'; boundary: 'solid' | 'double' | 'dashed' }> = {
   project: { hub: 'diamond', boundary: 'solid' },
   goal: { hub: 'orb', boundary: 'double' },
   category: { hub: 'orb', boundary: 'dashed' },
 };
 
-/** Regions of one kind are laid out together as a cluster with its own title and outline. */
+/** Spaces of one kind are laid out together as a cluster with its own title and outline. */
 export const CLUSTER = {
   /** Empty space between neighbouring clusters, in zone cells. */
   gapCells: 0.55,
@@ -206,7 +206,7 @@ export const LIGHTING = {
   ],
 } as const;
 
-/** Each region is a constellation: tasks on a golden-angle spiral around a hub. */
+/** Each space is a constellation: tasks on a golden-angle spiral around a hub. */
 export const CONSTELLATION = {
   spiralSpacing: 1.95,
   spiralStart: 1.1,
@@ -238,7 +238,7 @@ export const CAMERA = {
   far: 400,
   distance: 19,
   minDistance: 7,
-  /** Zoom-out floor; the real limit grows with the universe so every region can always be seen at once. */
+  /** Zoom-out floor; the real limit grows with the universe so every space can always be seen at once. */
   maxDistance: 90,
   /** The zoom-out limit is this many times the distance that fits the whole universe in a square view. */
   overviewMargin: 1.25,
@@ -256,7 +256,7 @@ export const CAMERA = {
   pointerParallax: [1.1, 0.7] as [number, number],
   dragThresholdPx: 5,
   boundsMargin: 8,
-  /** Active-region labels are shown when the camera is closer than this. */
+  /** Active-space labels are shown when the camera is closer than this. */
   labelDistance: 24,
   /** All labels fade out with camera distance between these two (smoothstep). */
   labelFade: [20, 34] as [number, number],
@@ -299,6 +299,6 @@ export const EFFECTS = {
   vignette: { offset: 0.25, darkness: 0.45 },
 } as const;
 
-/** Hex for a region's stored `colorIndex` (wraps past the end of the palette). */
-export const regionHue = (colorIndex: number): string =>
-  PALETTE.regionHues[((colorIndex % PALETTE.regionHues.length) + PALETTE.regionHues.length) % PALETTE.regionHues.length];
+/** Hex for a space's stored `colorIndex` (wraps past the end of the palette). */
+export const spaceHue = (colorIndex: number): string =>
+  PALETTE.spaceHues[((colorIndex % PALETTE.spaceHues.length) + PALETTE.spaceHues.length) % PALETTE.spaceHues.length];

@@ -3,14 +3,15 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import type { QualityTier } from '../contracts/events';
 import type { Region, Task } from '../contracts/task';
-import { CAMERA, CONSTELLATION, EFFECTS, PALETTE, QUALITY } from '../contracts/tokens';
+import { CAMERA, CONSTELLATION, EFFECTS, PALETTE, PARALLAX, QUALITY } from '../contracts/tokens';
 import { CameraRig, type CameraFocus } from './CameraRig';
 import { Composer } from './effects/Composer';
 import { pointerState, type PositionRegistry } from './interaction';
 import { LabelCuller, useLabelRegistry } from './labels';
-import { computeLayout } from './layout';
+import { backgroundScale, computeLayout, maxZoomDistance } from './layout';
 import { StudioRig } from './lighting/StudioRig';
 import { regionRamp } from './materials/materials';
+import { ClusterFrame } from './objects/ClusterFrame';
 import { Constellation, type RegionStats } from './objects/Constellation';
 import { ParallaxBackground } from './objects/ParallaxBackground';
 import { TaskOrb } from './objects/TaskOrb';
@@ -92,6 +93,14 @@ export function Scene(props: SceneProps) {
     () => [(layout.bounds.minX + layout.bounds.maxX) / 2, (layout.bounds.minY + layout.bounds.maxY) / 2],
     [layout.bounds],
   );
+  const zoom = useMemo(() => {
+    const maxDistance = maxZoomDistance(layout.bounds);
+    // Quantised so small layout changes do not regenerate the star field.
+    const bgScale = Math.ceil(backgroundScale(layout.bounds, maxDistance, PARALLAX.backdrop.z, PARALLAX.backdrop.size) * 2) / 2;
+    return { maxDistance, bgScale, far: Math.max(CAMERA.far, maxDistance - PARALLAX.backdrop.z + CAMERA.boundsMargin * 4) };
+  }, [layout.bounds]);
+  // Keep star density roughly constant as the background stretches, within a fixed budget.
+  const stars = Math.round(q.stars * Math.min(zoom.bgScale * zoom.bgScale, 4));
 
   return (
     <div className={`scene-root${props.hideLabels ? ' hide-labels' : ''}`}>
@@ -111,8 +120,11 @@ export function Scene(props: SceneProps) {
         <color attach="background" args={[PALETTE.base]} />
         <Suspense fallback={null}>
           <StudioRig />
-          <CameraRig focus={focus} bounds={layout.bounds} reducedMotion={reducedMotion} />
-          <ParallaxBackground center={bgCenter} tint={tint} stars={q.stars} ambient={animate} />
+          <CameraRig focus={focus} bounds={layout.bounds} maxDistance={zoom.maxDistance} far={zoom.far} reducedMotion={reducedMotion} />
+          <ParallaxBackground center={bgCenter} scale={zoom.bgScale} tint={tint} stars={stars} ambient={animate} />
+          {layout.clusters.map((cluster) => (
+            <ClusterFrame key={cluster.kind} cluster={cluster} labelLayer={labelLayer} />
+          ))}
           {layout.zones.map((zone) => (
             <Constellation
               key={zone.region.id}
@@ -121,6 +133,7 @@ export function Scene(props: SceneProps) {
               stats={regionStats[zone.region.id] ?? EMPTY_STATS}
               active={zone.region.id === activeRegionId}
               ambient={animate}
+              spacing={layout.zoneSpacing}
               registry={registry}
               labelLayer={labelLayer}
               onSelectRegion={props.onSelectRegion}

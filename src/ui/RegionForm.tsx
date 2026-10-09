@@ -62,6 +62,7 @@ export function RegionForm({ initial, submitLabel, onSubmit, onChange, autoFocus
               className={draft.kind === k ? 'is-on' : ''}
               onClick={() => update({ kind: k })}
             >
+              <span className="kind-mark" data-kind={k} aria-hidden="true" />
               {REGION_KIND_LABELS[k]}
             </button>
           ))}

@@ -1,5 +1,5 @@
 import type { QualityTier } from './events';
-import type { Priority } from './task';
+import type { Priority, RegionKind } from './task';
 
 type Vec3 = [number, number, number];
 
@@ -11,8 +11,16 @@ type Vec3 = [number, number, number];
 export const PALETTE = {
   /** Near-black, very slightly blue. Canvas clear colour and app background. */
   base: '#0A0C11',
-  /** Muted, perceptually balanced (OKLCH L ≈ 0.66, C ≈ 0.075). Regions store an index, never the hex. */
-  regionHues: ['#7490BD', '#5F9E8F', '#C09562', '#B57D8E', '#8E83BC', '#6B9DB0', '#B9796B', '#8EA06E'],
+  /**
+   * Regions store an index, never the hex, so existing entries must never move. The first eight are the
+   * original muted set (OKLCH L ≈ 0.66, C ≈ 0.075); the rest vary lightness (0.60–0.74) and chroma
+   * (≤ 0.13) as well as hue, picked greedily to maximise the smallest OKLab distance to every earlier entry.
+   */
+  regionHues: [
+    '#7490BD', '#5F9E8F', '#C09562', '#B57D8E', '#8E83BC', '#6B9DB0', '#B9796B', '#8EA06E',
+    '#D38DD9', '#F1878F', '#40C59B', '#8EA5FD', '#2BBCE7', '#539344', '#9A7C2A', '#AC60A2',
+    '#B3B144', '#0A8FA8', '#5F7BCE', '#BF5B71', '#4EAC6C', '#ED905E', '#2DA0DA', '#A89620',
+  ],
   /** The one global alert colour (overdue). Do not introduce a second. */
   alert: '#D4705F',
   completedNeutral: '#6B7280',
@@ -66,6 +74,8 @@ export const TYPE = {
   taskTitle: { size: 12, weight: 500, tracking: '-0.01em', color: 'rgba(232,238,245,0.92)' },
   taskMeta: { size: 10.5, weight: 400, tracking: '0', color: 'rgba(232,238,245,0.50)' },
   zoneTitle: { size: 13, weight: 500, tracking: '0.22em' },
+  /** Kind cluster heading (Projects / Goals / Categories); it stays readable when zone titles have faded. */
+  clusterTitle: { size: 16 },
   zoneSubtitle: { size: 10, weight: 400, tracking: '0.14em', color: 'rgba(232,238,245,0.38)' },
   sidebarName: { size: 13, weight: 450, color: 'rgba(232,238,245,0.88)' },
   sidebarCount: { size: 12, weight: 400, color: 'rgba(232,238,245,0.42)' },
@@ -143,11 +153,41 @@ export const MATERIALS = {
   /** Selection ring in the region base hue. */
   ring: { radiusRatio: 1.32, tube: 0.016, opacity: 0.85 },
   hub: { radius: 0.3, intensity: 1.6 },
-  /** Goal progress arc around the hub: region hue at 40%, kept below the bloom threshold. */
-  goalArc: { radius: 0.62, width: 0.035, opacity: 0.4 },
+  /** Goal progress arc around the hub: region hue at 40%, kept below the bloom threshold. The faint full track shows the remainder. */
+  goalArc: { radius: 0.62, width: 0.035, opacity: 0.4, trackOpacity: 0.12 },
   lines: { activeOpacity: 0.22, inactiveOpacity: 0.1, parentBoost: 1.2, childFade: 0.7 },
   /** Zone floor: radial-gradient disc plus a hairline boundary. */
   zoneDisc: { centerAlpha: 0.05, hairlineOpacity: 0.1, inactiveFactor: 0.4 },
+  /** Category boundaries are dashed: dash count around the ellipse and the drawn share of each dash. */
+  dashedBoundary: { dashes: 48, duty: 0.55 },
+  /** Goal boundaries are doubled: the inner hairline's radius relative to the outer one. */
+  doubleBoundary: { innerRatio: 0.965 },
+  /** Project hubs are diamonds (octahedra); scale relative to the round hub so both read as the same size. */
+  diamondHubScale: 1.35,
+} as const;
+
+/**
+ * Shape identifies a region's kind, everywhere it appears (hub, zone boundary, label mark, sidebar dot);
+ * hue still identifies the region itself.
+ */
+export const REGION_KIND_STYLE: Record<RegionKind, { hub: 'diamond' | 'orb'; boundary: 'solid' | 'double' | 'dashed' }> = {
+  project: { hub: 'diamond', boundary: 'solid' },
+  goal: { hub: 'orb', boundary: 'double' },
+  category: { hub: 'orb', boundary: 'dashed' },
+};
+
+/** Regions of one kind are laid out together as a cluster with its own title and outline. */
+export const CLUSTER = {
+  /** Empty space between neighbouring clusters, in zone cells. */
+  gapCells: 0.55,
+  /** Outline padding around the cluster's zones, world units. */
+  padding: 2.4,
+  /** Room above each zone for its title block, world units. */
+  zoneTitleRoom: 2.2,
+  cornerRadius: 3.5,
+  outlineOpacity: 0.06,
+  /** Cluster title sits this far above the outline, world units. */
+  titleOffset: 1.4,
 } as const;
 
 /** Neutral lighting only: coloured reflections on the glass would break the hue rule. */
@@ -198,7 +238,19 @@ export const CAMERA = {
   far: 400,
   distance: 19,
   minDistance: 7,
-  maxDistance: 42,
+  /** Zoom-out floor; the real limit grows with the universe so every region can always be seen at once. */
+  maxDistance: 90,
+  /** The zoom-out limit is this many times the distance that fits the whole universe in a square view. */
+  overviewMargin: 1.25,
+  /** Widest window aspect the background must cover at full zoom-out. */
+  maxAspect: 2.4,
+  /** Beyond this distance zone subtitles hide. */
+  zoneDetailDistance: 60,
+  /**
+   * Inactive zone titles fade together as neighbouring zones close in on screen: gone when zone centres are
+   * the first value apart in CSS pixels, fully shown at the second. Cluster titles take over below that.
+   */
+  zoneTitleSpacingPx: [130, 190] as [number, number],
   zoomPerWheelPixel: 0.0012,
   /** How far the camera sways with the mouse, for parallax. */
   pointerParallax: [1.1, 0.7] as [number, number],

@@ -290,6 +290,15 @@ kbd {
   flex: none;
   background: var(--region);
 }
+/* Same kind shapes as the scene: diamond = project, ring = goal, dot = category. */
+.region-dot[data-kind='project'] {
+  border-radius: 1px;
+  transform: rotate(45deg) scale(0.85);
+}
+.region-dot[data-kind='goal'] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--region);
+}
 .region-name {
   flex: 1;
   min-width: 0;
@@ -592,6 +601,10 @@ kbd {
   cursor: pointer;
   color: var(--text-muted);
   font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 .segmented button.is-on {
   color: var(--text);
@@ -600,9 +613,9 @@ kbd {
 }
 
 .swatches {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(8, 22px);
   gap: 8px;
-  flex-wrap: wrap;
 }
 .swatch {
   width: 22px;

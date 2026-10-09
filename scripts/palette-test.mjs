@@ -1,26 +1,24 @@
-// Guards the region palette against drift: every hue must sit near the group's mean OKLCH lightness
-// and chroma, and hues must be spread around the wheel. Usage: npm run test:palette
+// Guards the region palette against drift: stored indices must keep their colour, every hue must stay in
+// the lightness/chroma band that reads well as glass under bloom, and every pair must be perceptually
+// distinct. Usage: npm run test:palette
 import { readFileSync } from 'node:fs';
-import { converter } from 'culori';
+import { converter, differenceEuclidean } from 'culori';
 
-const MAX_L_DEV = 0.04;
-const MAX_C_DEV = 0.03;
-/** Largest empty arc allowed between neighbouring hues, and smallest separation, in degrees. */
-const MAX_HUE_GAP = 95;
-const MIN_HUE_GAP = 14;
+/** Regions store an index into the palette; these entries can never change or move. */
+const FROZEN = ['#7490BD', '#5F9E8F', '#C09562', '#B57D8E', '#8E83BC', '#6B9DB0', '#B9796B', '#8EA06E'];
+const MIN_COUNT = 24;
+const L_RANGE = [0.58, 0.78];
+const C_RANGE = [0.05, 0.14];
+/** Smallest OKLab distance allowed between any two entries (the original set's closest pair is ~0.047). */
+const MIN_DISTANCE = 0.045;
 
 const src = readFileSync(new URL('../src/contracts/tokens.ts', import.meta.url), 'utf8');
 const block = /regionHues:\s*\[([^\]]+)\]/.exec(src);
 if (!block) throw new Error('PALETTE.regionHues not found in tokens.ts');
-const hexes = [...block[1].matchAll(/'(#[0-9a-fA-F]{6})'/g)].map((m) => m[1]);
+const hexes = [...block[1].matchAll(/'(#[0-9a-fA-F]{6})'/g)].map((m) => m[1].toUpperCase());
 
 const oklch = converter('oklch');
-const rows = hexes.map((hex) => {
-  const c = oklch(hex);
-  return { hex, l: c.l, c: c.c, h: c.h ?? 0 };
-});
-const meanL = rows.reduce((s, r) => s + r.l, 0) / rows.length;
-const meanC = rows.reduce((s, r) => s + r.c, 0) / rows.length;
+const distance = differenceEuclidean('oklab');
 
 let failures = 0;
 const fail = (msg) => {
@@ -28,23 +26,28 @@ const fail = (msg) => {
   failures++;
 };
 
-console.log(`mean L ${meanL.toFixed(3)}  mean C ${meanC.toFixed(3)}`);
-for (const r of rows) {
-  const dl = r.l - meanL;
-  const dc = r.c - meanC;
-  console.log(`${r.hex}  L ${r.l.toFixed(3)} (${dl >= 0 ? '+' : ''}${dl.toFixed(3)})  C ${r.c.toFixed(3)} (${dc >= 0 ? '+' : ''}${dc.toFixed(3)})  h ${r.h.toFixed(1)}`);
-  if (Math.abs(dl) > MAX_L_DEV) fail(`${r.hex} lightness is ${dl.toFixed(3)} from the mean (limit ${MAX_L_DEV})`);
-  if (Math.abs(dc) > MAX_C_DEV) fail(`${r.hex} chroma is ${dc.toFixed(3)} from the mean (limit ${MAX_C_DEV})`);
+if (hexes.length < MIN_COUNT) fail(`expected at least ${MIN_COUNT} region hues, found ${hexes.length}`);
+FROZEN.forEach((hex, i) => {
+  if (hexes[i] !== hex) fail(`index ${i} must stay ${hex} (stored regions refer to it), found ${hexes[i]}`);
+});
+if (new Set(hexes).size !== hexes.length) fail('palette contains duplicates');
+
+for (const hex of hexes) {
+  const c = oklch(hex);
+  console.log(`${hex}  L ${c.l.toFixed(3)}  C ${c.c.toFixed(3)}  h ${(c.h ?? 0).toFixed(1)}`);
+  if (c.l < L_RANGE[0] || c.l > L_RANGE[1]) fail(`${hex} lightness ${c.l.toFixed(3)} outside ${L_RANGE.join('–')}`);
+  if (c.c < C_RANGE[0] || c.c > C_RANGE[1]) fail(`${hex} chroma ${c.c.toFixed(3)} outside ${C_RANGE.join('–')}`);
 }
 
-if (hexes.length !== 8) fail(`expected 8 region hues, found ${hexes.length}`);
-const hues = rows.map((r) => r.h).sort((a, b) => a - b);
-const gaps = hues.map((h, i) => (i === hues.length - 1 ? hues[0] + 360 - h : hues[i + 1] - h));
-const maxGap = Math.max(...gaps);
-const minGap = Math.min(...gaps);
-console.log(`hue gaps: ${gaps.map((g) => g.toFixed(0)).join(', ')}`);
-if (maxGap > MAX_HUE_GAP) fail(`largest hue gap ${maxGap.toFixed(1)}° exceeds ${MAX_HUE_GAP}°`);
-if (minGap < MIN_HUE_GAP) fail(`two hues are only ${minGap.toFixed(1)}° apart (minimum ${MIN_HUE_GAP}°)`);
+let closest = { d: Infinity, a: '', b: '' };
+for (let i = 0; i < hexes.length; i++) {
+  for (let j = i + 1; j < hexes.length; j++) {
+    const d = distance(hexes[i], hexes[j]);
+    if (d < closest.d) closest = { d, a: hexes[i], b: hexes[j] };
+  }
+}
+console.log(`closest pair: ${closest.a} / ${closest.b}  ΔE(OKLab) ${closest.d.toFixed(3)}`);
+if (closest.d < MIN_DISTANCE) fail(`${closest.a} and ${closest.b} are too similar (${closest.d.toFixed(3)} < ${MIN_DISTANCE})`);
 
 console.log(failures ? `\n${failures} palette check(s) failed` : '\nPalette checks passed');
 process.exit(failures ? 1 : 0);

@@ -4,7 +4,7 @@ import { easing } from 'maath';
 import { memo, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import * as THREE from 'three';
 import { CONSTELLATION, MATERIALS, MOTION, PALETTE } from '../../contracts/tokens';
-import { FRAME, pointerState, type PositionRegistry } from '../interaction';
+import { FRAME, pointerState, sceneSeconds, type PositionRegistry } from '../interaction';
 import { useLabelEntry, type LabelRegistry } from '../labels';
 import type { OrbPlacement } from '../layout';
 import { createGlassMaterial, createGlowMaterial, sharedGeometry, type RegionRamp } from '../materials/materials';
@@ -163,7 +163,7 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
     const r = p.ramp;
     const task = p.orb.task;
     const dt = Math.min(rawDelta, 1 / 20);
-    const t = state.clock.elapsedTime;
+    const t = sceneSeconds();
     const k = p.reducedMotion ? 0.0001 : 1;
     const isDone = task.completedAt !== null;
     const isOverdueNow = isOverdue(task.dueAt, task.completedAt, Date.now());

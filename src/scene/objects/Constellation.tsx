@@ -1,9 +1,10 @@
 import { Html } from '@react-three/drei';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
-import { useEffect, useMemo, useRef, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import * as THREE from 'three';
-import { CONSTELLATION, MATERIALS } from '../../contracts/tokens';
-import { FRAME, pointerState, type PositionRegistry } from '../interaction';
+import { REGION_KIND_LABELS } from '../../contracts/task';
+import { CAMERA, CONSTELLATION, MATERIALS, REGION_KIND_STYLE } from '../../contracts/tokens';
+import { FRAME, pointerState, sceneSeconds, type PositionRegistry } from '../interaction';
 import type { Zone } from '../layout';
 import { createGlowMaterial, getDiscTexture, sharedGeometry, type RegionRamp } from '../materials/materials';
 
@@ -18,12 +19,26 @@ export interface ConstellationProps {
   stats: RegionStats;
   active: boolean;
   ambient: boolean;
+  /** Horizontal distance to the neighbouring zone centre, world units. */
+  spacing: number;
   registry: PositionRegistry;
   labelLayer: RefObject<HTMLDivElement | null>;
   onSelectRegion(id: string): void;
 }
 
 const DAY = 86_400_000;
+
+const BOUNDARY_GEOMETRY = { solid: 'hairline', double: 'hairlineDouble', dashed: 'hairlineDashed' } as const;
+
+const FOV_TAN = Math.tan((CAMERA.fov * Math.PI) / 360);
+
+/** Zone title detail: subtitle only up close; the name fades once neighbouring zones crowd together on screen. */
+function zoneLabelFade(distance: number, heightPx: number, spacing: number): { detail: boolean; fade: number } {
+  const spacingPx = (spacing * heightPx) / (2 * FOV_TAN * distance);
+  const [a, b] = CAMERA.zoneTitleSpacingPx;
+  const t = THREE.MathUtils.clamp((spacingPx - a) / (b - a), 0, 1);
+  return { detail: distance < CAMERA.zoneDetailDistance, fade: Math.round(t * t * (3 - 2 * t) * 20) / 20 };
+}
 
 function subtitle(zone: Zone, stats: RegionStats): string {
   const total = stats.open + stats.done;
@@ -41,10 +56,17 @@ function subtitle(zone: Zone, stats: RegionStats): string {
 }
 
 /** Floor disc, hairline boundary, hub, goal arc and the light lines joining a region's tasks. Orbs are rendered separately. */
-export function Constellation({ zone, ramp, stats, active, ambient, registry, labelLayer, onSelectRegion }: ConstellationProps) {
+export function Constellation({ zone, ramp, stats, active, ambient, spacing, registry, labelLayer, onSelectRegion }: ConstellationProps) {
   const { region, orbs, center, edges } = zone;
   const hub = useRef<THREE.Mesh>(null);
+  const [labelEl, setLabelEl] = useState<HTMLDivElement | null>(null);
+  const labelState = useRef({ detail: true, fade: 1 });
+  useEffect(() => {
+    labelState.current = { detail: true, fade: 1 };
+  }, [labelEl]);
   const ry = zone.radius / CONSTELLATION.ellipseX;
+  const kindStyle = REGION_KIND_STYLE[region.kind];
+  const hubRadius = MATERIALS.hub.radius * (kindStyle.hub === 'diamond' ? MATERIALS.diamondHubScale : 1);
 
   const hubMat = useMemo(() => createGlowMaterial(ramp.base, MATERIALS.hub.intensity), [ramp.base]);
   useEffect(() => () => hubMat.dispose(), [hubMat]);
@@ -113,14 +135,30 @@ export function Constellation({ zone, ramp, stats, active, ambient, registry, la
     return new THREE.RingGeometry(radius - width / 2, radius + width / 2, 96, 1, Math.PI / 2 - length, length);
   }, [region.kind, ratio]);
   useEffect(() => () => arc?.dispose(), [arc]);
-  const arcMat = useMemo(() => {
-    const m = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, opacity: MATERIALS.goalArc.opacity });
-    return m;
-  }, []);
+  const track = useMemo(() => {
+    if (region.kind !== 'goal') return null;
+    const { radius, width } = MATERIALS.goalArc;
+    return new THREE.RingGeometry(radius - width / 2, radius + width / 2, 96);
+  }, [region.kind]);
+  useEffect(() => () => track?.dispose(), [track]);
+  const { arcMat, trackMat } = useMemo(
+    () => ({
+      arcMat: new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, opacity: MATERIALS.goalArc.opacity }),
+      trackMat: new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, opacity: MATERIALS.goalArc.trackOpacity }),
+    }),
+    [],
+  );
   useEffect(() => {
     arcMat.color.set(ramp.base);
-  }, [arcMat, ramp.base]);
-  useEffect(() => () => arcMat.dispose(), [arcMat]);
+    trackMat.color.set(ramp.base);
+  }, [arcMat, trackMat, ramp.base]);
+  useEffect(
+    () => () => {
+      arcMat.dispose();
+      trackMat.dispose();
+    },
+    [arcMat, trackMat],
+  );
 
   useFrame((state) => {
     const pos = lines.geometry.getAttribute('position') as THREE.BufferAttribute;
@@ -140,7 +178,17 @@ export function Constellation({ zone, ramp, stats, active, ambient, registry, la
     lines.geometry.computeBoundingSphere();
 
     const h = hub.current;
-    if (h && ambient) h.scale.setScalar(MATERIALS.hub.radius * (1 + Math.sin(state.clock.elapsedTime * 1.2) * 0.05));
+    if (h && ambient) h.scale.setScalar(hubRadius * (1 + Math.sin(sceneSeconds() * 1.2) * 0.05));
+    if (h && kindStyle.hub === 'diamond' && ambient) h.rotation.y = sceneSeconds() * 0.4;
+
+    const el = labelEl;
+    if (el) {
+      const next = zoneLabelFade(state.camera.position.z, state.size.height, spacing);
+      const prev = labelState.current;
+      if (next.detail !== prev.detail) el.dataset.detail = next.detail ? 'full' : 'name';
+      if (next.fade !== prev.fade) el.style.setProperty('--zone-fade', String(next.fade));
+      labelState.current = next;
+    }
   }, FRAME.lines);
 
   const onHubClick = (e: ThreeEvent<MouseEvent>) => {
@@ -153,13 +201,20 @@ export function Constellation({ zone, ramp, stats, active, ambient, registry, la
       <primitive object={lines} />
       <group position={center}>
         <mesh geometry={sharedGeometry('disc', 0)} material={discMat} scale={[zone.radius, ry, 1]} position-z={-0.9} raycast={() => null} />
-        <mesh geometry={sharedGeometry('hairline', 0)} material={hairMat} scale={[zone.radius, ry, 1]} position-z={-0.88} raycast={() => null} />
+        <mesh
+          geometry={sharedGeometry(BOUNDARY_GEOMETRY[kindStyle.boundary], 0)}
+          material={hairMat}
+          scale={[zone.radius, ry, 1]}
+          position-z={-0.88}
+          raycast={() => null}
+        />
+        {track && <mesh geometry={track} material={trackMat} raycast={() => null} />}
         {arc && <mesh geometry={arc} material={arcMat} raycast={() => null} />}
         <mesh
           ref={hub}
-          geometry={sharedGeometry('core', 0)}
+          geometry={sharedGeometry(kindStyle.hub === 'diamond' ? 'diamond' : 'core', 0)}
           material={hubMat}
-          scale={MATERIALS.hub.radius}
+          scale={hubRadius}
           onClick={onHubClick}
           onPointerOver={() => {
             if (!pointerState.down) document.body.style.cursor = 'pointer';
@@ -175,8 +230,15 @@ export function Constellation({ zone, ramp, stats, active, ambient, registry, la
           pointerEvents="none"
           zIndexRange={[10, 0]}
         >
-          <div className={`zone-label${active ? ' is-active' : ''}`} data-kind={region.kind} style={{ ['--zone-text' as string]: ramp.text }}>
+          <div
+            ref={setLabelEl}
+            className={`zone-label${active ? ' is-active' : ''}`}
+            data-kind={region.kind}
+            data-detail="full"
+            style={{ ['--zone-text' as string]: ramp.text }}
+          >
             <span className="zone-name" lang="bn-BD en">
+              <span className="kind-mark" data-kind={region.kind} title={REGION_KIND_LABELS[region.kind]} />
               {region.name}
             </span>
             <span className="zone-count">{subtitle(zone, stats)}</span>

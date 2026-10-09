@@ -33,6 +33,10 @@ function framedY(focus: CameraFocus, distance: number, heightPx: number): number
 interface Props {
   focus: CameraFocus | null;
   bounds: SceneLayout['bounds'];
+  /** Zoom-out limit; grows with the universe. */
+  maxDistance: number;
+  /** Far clipping distance needed to keep the background in view at `maxDistance`. */
+  far: number;
   reducedMotion: boolean;
 }
 
@@ -40,7 +44,7 @@ interface Props {
  * Drag to pan (with momentum), wheel to zoom, mouse position sways the camera for parallax.
  * The canvas is the only element that receives these gestures; the DOM overlay passes them through.
  */
-export function CameraRig({ focus, bounds, reducedMotion }: Props) {
+export function CameraRig({ focus, bounds, maxDistance, far, reducedMotion }: Props) {
   const camera = useThree((s) => s.camera);
   const gl = useThree((s) => s.gl);
   const size = useThree((s) => s.size);
@@ -51,9 +55,16 @@ export function CameraRig({ focus, bounds, reducedMotion }: Props) {
   const velocity = useRef(new THREE.Vector2());
   const sway = useRef(new THREE.Vector2());
   const flying = useRef(false);
-  const live = useRef({ bounds, size, reducedMotion, focus });
-  live.current = { bounds, size, reducedMotion, focus };
+  const live = useRef({ bounds, size, reducedMotion, focus, maxDistance });
+  live.current = { bounds, size, reducedMotion, focus, maxDistance };
   const focusKey = focus?.key;
+
+  useEffect(() => {
+    if (!(camera instanceof THREE.PerspectiveCamera) || camera.far === far) return;
+    camera.far = far;
+    camera.updateProjectionMatrix();
+    invalidate();
+  }, [camera, far, invalidate]);
 
   useEffect(() => {
     camera.position.set(target.current.x, target.current.y, target.current.z);
@@ -135,7 +146,7 @@ export function CameraRig({ focus, bounds, reducedMotion }: Props) {
       if (e.shiftKey) {
         t.x += e.deltaY * worldPerPixel();
       } else {
-        t.z = THREE.MathUtils.clamp(t.z * (1 + e.deltaY * CAMERA.zoomPerWheelPixel), CAMERA.minDistance, CAMERA.maxDistance);
+        t.z = THREE.MathUtils.clamp(t.z * (1 + e.deltaY * CAMERA.zoomPerWheelPixel), CAMERA.minDistance, live.current.maxDistance);
       }
       invalidate();
     };
@@ -176,6 +187,7 @@ export function CameraRig({ focus, bounds, reducedMotion }: Props) {
     }
     t.x = THREE.MathUtils.clamp(t.x, b.minX, b.maxX);
     t.y = THREE.MathUtils.clamp(t.y, b.minY, b.maxY);
+    t.z = Math.min(t.z, live.current.maxDistance);
 
     const smooth = (flying.current ? MOTION.cameraFocus.smoothTime : MOTION.camera.smoothTime) * k;
     const swayX = rm ? 0 : sway.current.x * CAMERA.pointerParallax[0];

@@ -96,7 +96,7 @@ function build(seeds: RegionSeed[], now: number): { regions: Region[]; tasks: Ta
     name: g.name,
     kind: g.kind,
     description: g.description,
-    colorIndex: i % 8,
+    colorIndex: i,
     position: i,
     targetDate: g.targetInDays === null ? null : now + g.targetInDays * DAY,
     createdAt: now - 30 * DAY,
@@ -178,6 +178,40 @@ export const FIXTURES: Record<string, (now: number) => { regions: Region[]; task
           tasks: Array.from({ length: 60 }, (_, i) => [`Dense task number ${i + 1}`, P[i % 4], i % 9 === 0 ? -1 : null, i % 7 === 0, []] satisfies Seed),
         },
       ],
+      now,
+    ),
+  /** Kinds interleaved in creation order, so a new project reorders the categories after it. */
+  reorder: (now) =>
+    build(
+      (
+        [
+          ['SQLens', 'project', 4],
+          ['FL Research', 'category', 1],
+          ['IUTverse', 'project', 0],
+          ['woTask', 'project', 3],
+          ['Portfolio-Upgrade', 'project', 1],
+          ['NID-OCR', 'category', 2],
+        ] as const
+      ).map(([name, kind, n], r) => ({
+        id: `region-reorder-${r}`,
+        name,
+        kind,
+        description: null,
+        targetInDays: null,
+        tasks: Array.from({ length: n }, (_, i) => [`${name} task ${i + 1}`, P[(i + r) % 4], null, false, []] satisfies Seed),
+      })),
+      now,
+    ),
+  many: (now) =>
+    build(
+      Array.from({ length: 30 }, (_, r) => ({
+        id: `region-many-${r}`,
+        name: `${(['Project', 'Goal', 'Category'] as const)[r % 3]} ${r + 1}`,
+        kind: (['project', 'goal', 'category'] as const)[r % 3],
+        description: null,
+        targetInDays: r % 3 === 1 ? 20 : null,
+        tasks: Array.from({ length: (r * 7) % 9 }, (_, i) => [`Task ${r + 1}.${i + 1}`, P[(i + r) % 4], null, i % 5 === 4, []] satisfies Seed),
+      })),
       now,
     ),
   stress: (now) =>

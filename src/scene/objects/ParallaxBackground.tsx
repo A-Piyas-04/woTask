@@ -6,6 +6,8 @@ import { getDotTexture, mixHex, paintBackdrop, paintNebula, rng } from '../mater
 
 interface Props {
   center: [number, number];
+  /** Uniform x/y stretch so the layers cover a large universe at full zoom-out. */
+  scale: number;
   /** Active region hue; contributes at most `PALETTE.background.nebulaTint` to the nebula. */
   tint: string | null;
   stars: number;
@@ -59,7 +61,7 @@ function disposeObject(o: THREE.Mesh | THREE.Points) {
  * Neutral deep field with a hint of the active region's hue. Layers sit at very different depths, so
  * panning produces real parallax: near dust slides past quickly, far layers barely move.
  */
-export function ParallaxBackground({ center, tint, stars, ambient }: Props) {
+export function ParallaxBackground({ center, scale, tint, stars, ambient }: Props) {
   const dust = useRef<THREE.Points>(null);
   const bg = PALETTE.background;
 
@@ -120,7 +122,7 @@ export function ParallaxBackground({ center, tint, stars, ambient }: Props) {
   });
 
   return (
-    <group position={[center[0], center[1], 0]}>
+    <group position={[center[0], center[1], 0]} scale={[scale, scale, 1]}>
       <primitive object={backdrop} />
       {nebulae.map((n, i) => (
         <primitive key={i} object={n} />

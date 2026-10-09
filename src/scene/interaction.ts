@@ -9,6 +9,12 @@ export const pointerState = {
   dragged: false,
 };
 
+/**
+ * Monotonic scene time in seconds. Never use `state.clock.elapsedTime` for timestamps that are compared
+ * across frames: R3F resets it to 0 whenever `frameloop` changes, which happens on every window focus change.
+ */
+export const sceneSeconds = (): number => performance.now() / 1000;
+
 /** Live (animated) orb positions, written by orbs and read by the connection lines. */
 export type PositionRegistry = Map<string, THREE.Vector3>;
 

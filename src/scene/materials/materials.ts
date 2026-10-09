@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { MATERIALS, RAMP, regionHue } from '../../contracts/tokens';
 
 const G = MATERIALS.glass;
@@ -87,7 +88,31 @@ export function createGlowMaterial(
 
 const geometryCache = new Map<string, THREE.BufferGeometry>();
 
-type SharedKind = 'sphere' | 'core' | 'ring' | 'highRing' | 'overdueRing' | 'burst' | 'hairline' | 'disc';
+type SharedKind =
+  | 'sphere'
+  | 'core'
+  | 'diamond'
+  | 'ring'
+  | 'highRing'
+  | 'overdueRing'
+  | 'burst'
+  | 'hairline'
+  | 'hairlineDashed'
+  | 'hairlineDouble'
+  | 'disc';
+
+const HAIRLINE_INNER = 0.997;
+
+function dashedRing(): THREE.BufferGeometry {
+  const { dashes, duty } = MATERIALS.dashedBoundary;
+  const step = (Math.PI * 2) / dashes;
+  return mergeGeometries(Array.from({ length: dashes }, (_, i) => new THREE.RingGeometry(HAIRLINE_INNER, 1, 4, 1, i * step, step * duty)));
+}
+
+function doubleRing(): THREE.BufferGeometry {
+  const k = MATERIALS.doubleBoundary.innerRatio;
+  return mergeGeometries([new THREE.RingGeometry(HAIRLINE_INNER, 1, 192), new THREE.RingGeometry(HAIRLINE_INNER * k, k, 192)]);
+}
 
 /** Unit geometries shared by every orb for the lifetime of the app. */
 export function sharedGeometry(kind: SharedKind, segments: number): THREE.BufferGeometry {
@@ -96,10 +121,13 @@ export function sharedGeometry(kind: SharedKind, segments: number): THREE.Buffer
   if (!g) {
     if (kind === 'sphere') g = new THREE.SphereGeometry(1, segments, Math.round(segments * 0.75));
     else if (kind === 'core') g = new THREE.IcosahedronGeometry(1, 2);
+    else if (kind === 'diamond') g = new THREE.OctahedronGeometry(1, 0);
     else if (kind === 'ring') g = new THREE.TorusGeometry(1, MATERIALS.ring.tube, 8, 128);
     else if (kind === 'highRing') g = new THREE.TorusGeometry(1, MATERIALS.highRing.tube, 6, 128);
     else if (kind === 'overdueRing') g = new THREE.TorusGeometry(1, MATERIALS.overdueRing.tube, 6, 128);
-    else if (kind === 'hairline') g = new THREE.RingGeometry(0.997, 1, 192);
+    else if (kind === 'hairline') g = new THREE.RingGeometry(HAIRLINE_INNER, 1, 192);
+    else if (kind === 'hairlineDashed') g = dashedRing();
+    else if (kind === 'hairlineDouble') g = doubleRing();
     else if (kind === 'disc') g = new THREE.CircleGeometry(1, 96);
     else g = new THREE.RingGeometry(0.96, 1, 96);
     geometryCache.set(key, g);

@@ -51,7 +51,7 @@ export function Sidebar() {
                 title={i < 9 ? `Ctrl+${i + 1} · double-click for settings` : 'Double-click for settings'}
                 aria-current={g.id === activeRegionId ? 'page' : undefined}
               >
-                <span className="region-dot" />
+                <span className="region-dot" data-kind={g.kind} />
                 <span className="region-name" lang="bn-BD en">
                   {g.name}
                 </span>
@@ -88,7 +88,7 @@ export function Sidebar() {
               {archived.map((g) => (
                 <li key={g.id} className="region-row-wrap">
                   <div className="region-row is-archived" style={{ ['--region' as string]: regionHue(g.colorIndex) }}>
-                    <span className="region-dot" />
+                    <span className="region-dot" data-kind={g.kind} />
                     <span className="region-name" lang="bn-BD en">
                       {g.name}
                     </span>

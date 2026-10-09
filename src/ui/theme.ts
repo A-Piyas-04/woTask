@@ -28,6 +28,7 @@ export function applyTheme(root: HTMLElement): void {
     '--zone-title-size': `${TYPE.zoneTitle.size}px`,
     '--zone-title-weight': String(TYPE.zoneTitle.weight),
     '--zone-title-tracking': TYPE.zoneTitle.tracking,
+    '--cluster-title-size': `${TYPE.clusterTitle.size}px`,
     '--zone-sub-size': `${TYPE.zoneSubtitle.size}px`,
     '--zone-sub-tracking': TYPE.zoneSubtitle.tracking,
     '--zone-sub-color': TYPE.zoneSubtitle.color,

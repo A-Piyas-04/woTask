@@ -295,6 +295,50 @@ const shot = async (page, name, opts = {}) => {
   await page.close();
 }
 
+// Regression: R3F resets its clock whenever `frameloop` changes (every window focus change), which once froze
+// every orb created later in the session at its old spot. Inserting a project before the categories moves
+// NID-OCR; its late task must follow.
+{
+  const page = await open('seed=reorder', { reducedMotion: 'no-preference' });
+  await page.waitForTimeout(8000);
+  await page.click('.region-row >> text=NID-OCR');
+  await page.waitForTimeout(600);
+  await page.fill('.task-input input', 'Late task');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(800);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await page.waitForTimeout(300);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.waitForTimeout(300);
+  await page.keyboard.press('Control+Shift+N');
+  await page.waitForTimeout(400);
+  await page.keyboard.type('RFE');
+  await page.click('.segmented[aria-label="Region kind"] button:has-text("Project")');
+  await page.click('.region-form button[type="submit"]');
+  await page.waitForTimeout(800);
+  await page.keyboard.press('Escape');
+  await page.click('.region-row >> text=NID-OCR');
+  await page.waitForTimeout(2500);
+  const res = await page.evaluate(() => {
+    const centre = (el) => {
+      const r = el.getBoundingClientRect();
+      return [r.x + r.width / 2, r.y + r.height / 2];
+    };
+    const orb = [...document.querySelectorAll('.orb-label')].find((e) => e.textContent.includes('Late task'));
+    if (!orb) return null;
+    const [ox, oy] = centre(orb);
+    const zones = [...document.querySelectorAll('.zone-label')].map((z) => {
+      const [x, y] = centre(z);
+      return { name: z.querySelector('.zone-name').textContent, d: Math.hypot(x - ox, y - oy) };
+    });
+    zones.sort((a, b) => a.d - b.d);
+    return zones[0];
+  });
+  check('orbs follow a region reorder after a focus change', res?.name === 'NID-OCR', res ? `nearest zone: ${res.name}` : 'label missing');
+  await page.close();
+}
+
 // Stress: 500 tasks with ambient motion on (continuous rendering). Informational: headless rAF timing
 // on this machine's GPU, not the target hardware.
 {

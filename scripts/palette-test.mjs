@@ -39,6 +39,13 @@ for (const hex of hexes) {
   if (c.c < C_RANGE[0] || c.c > C_RANGE[1]) fail(`${hex} chroma ${c.c.toFixed(3)} outside ${C_RANGE.join('–')}`);
 }
 
+// This test already owns "stored indices must keep their colour". The Rust side can break that
+// invariant from the other direction, by clamping `color_index` against its own copy of the hue
+// count - which is exactly what it used to do, with a stale count of 8 against a palette of 24.
+// The palette length belongs in tokens.ts alone; `spaceHue()` wraps it at render time.
+const dbRs = readFileSync(new URL('../src-tauri/src/db.rs', import.meta.url), 'utf8');
+if (/HUE_COUNT/.test(dbRs)) fail('src-tauri/src/db.rs must not know the hue count: store the raw color_index and let spaceHue() wrap it');
+
 let closest = { d: Infinity, a: '', b: '' };
 for (let i = 0; i < hexes.length; i++) {
   for (let j = i + 1; j < hexes.length; j++) {

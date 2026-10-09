@@ -37,8 +37,10 @@ pub struct Task {
     pub tags: Vec<String>,
 }
 
-/// Must match `PALETTE.regionHues.length` in `src/contracts/tokens.ts`.
-const REGION_HUE_COUNT: i64 = 8;
+// The number of hues lives only in `PALETTE.spaceHues` (`src/contracts/tokens.ts`). This table
+// stores the raw `color_index` and `spaceHue()` wraps it modulo the palette length at render time,
+// which is the only place that knows how long the palette is. Never clamp here: a clamp against a
+// stale count silently rewrites the user's colour choice on every save.
 
 const MIGRATIONS: &[&str] = &[
     // v1
@@ -215,7 +217,7 @@ fn save_region_on(conn: &Connection, g: &Region) -> rusqlite::Result<()> {
             g.name,
             g.kind,
             g.description,
-            g.color_index.rem_euclid(REGION_HUE_COUNT),
+            g.color_index,
             g.position,
             g.target_date,
             g.created_at,
@@ -364,6 +366,19 @@ mod tests {
             created_at: 1,
             archived_at: None,
         }
+    }
+
+    /// A `color_index` past the first eight hues must survive a round trip. It did not: this table
+    /// used to clamp against a hardcoded count of 8 while the palette had grown to 24, so picking the
+    /// 12th swatch stored the 4th under Tauri and the 12th in the browser.
+    #[test]
+    fn save_region_keeps_a_high_colour_index() {
+        let conn = mem();
+        migrate(&conn, None).unwrap();
+        let mut g = region("r", 0);
+        g.color_index = 20;
+        save_region(&conn, &g).unwrap();
+        assert_eq!(get_regions(&conn).unwrap()[0].color_index, 20);
     }
 
     fn task(id: &str, pos: i64) -> Task {

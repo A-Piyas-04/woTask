@@ -13,22 +13,48 @@ Nothing ever leaves your machine.
 
 ## Download and use (Windows)
 
-Get the app from [GitHub Releases](https://github.com/A-Piyas-04/woTask/releases/latest).
-Under **Assets**, download `woTask-<version>-windows-x64.zip`, extract it to a folder you can
-write to (such as Desktop), and double-click `wotask.exe`. You can also download the `.exe`
-asset directly and run it from your chosen folder.
+### Check the release assets first
 
-No terminal, Node.js, Rust, installation wizard or first-launch build is needed. The download
-contains the finished app, with its interface and local assets embedded in the executable.
+1. Open [GitHub Releases](https://github.com/A-Piyas-04/woTask/releases/latest).
+2. Expand **Assets** at the bottom of the release.
+3. Look for a Windows `.exe` or `woTask-<version>-windows-x64.zip`.
 
-Requires **64-bit Windows** and the **Microsoft Edge WebView2 Runtime** already installed.
-WebView2 is commonly present on Windows 10 and 11; it is not bundled or downloaded by woTask.
-If it is missing, the app shows a message explaining that it must be installed before opening
-woTask. Once that prerequisite is present, the app runs offline.
+**If you only see “Source code (zip)” and “Source code (tar.gz)”, the runnable app has not
+been attached to that release yet.** This is the state shown for the release titled `v1.0`
+(tag `mark1`) before the portable files are uploaded. A published release does not automatically
+include a built app; the maintainer must attach it using the steps below.
 
-**Do not use “Code → Download ZIP” or the release's “Source code” downloads to get the app.**
-Those contain source files, not a runnable EXE. If no release with the assets above is available
-yet, the maintainer still needs to publish one.
+| Download | What it contains | For regular users? |
+|---|---|---|
+| `woTask-<version>-windows-x64.exe` | Finished portable app | **Yes** — download and double-click |
+| `woTask-<version>-windows-x64.zip` | The same app, named `wotask.exe`, inside a ZIP | **Yes** — extract, then double-click |
+| `SHA256SUMS.txt` | Checksums for verifying the downloads | Optional |
+| `Source code (zip)` / `Source code (tar.gz)` | Project source files | No — these require a developer build |
+
+### Start using the app
+
+Once the portable assets are available:
+
+1. Download the Windows `.zip` asset.
+2. Extract it to a writable folder, such as a folder on your Desktop.
+3. Double-click `wotask.exe`.
+4. Start using woTask. Your data is saved locally.
+
+Alternatively, download the `.exe` asset directly, put it in your chosen folder, and double-click it.
+
+- **No terminal or build commands.**
+- **No Node.js or Rust required.**
+- **No installation wizard or first-launch build.**
+- **No account or internet connection needed to use the app.**
+
+### Requirements
+
+- **64-bit Windows.**
+- **Microsoft Edge WebView2 Runtime already installed.** It is commonly present on Windows 10 and 11.
+- WebView2 is not bundled or downloaded by woTask. If it is missing, the app explains that you must
+  install it before opening woTask.
+
+GitHub's **Code → Download ZIP** also downloads source files, not the runnable app.
 
 ## Why
 
@@ -65,9 +91,9 @@ woTask trades the list for a spatial layout where those facts are visible at a g
 
 ![A 14-step chain winding around its hub, with one step overdue and one completed out of order](docs/images/chain.png)
 
-A chain lays itself out as a necklace around the space's hub. Direction is carried by the chevrons
-and by a gradient that is bright at the blocker and fades toward whatever is waiting. Press `L` on a
-task to choose what it comes after.
+- Tasks in a chain form a necklace around the space's hub.
+- Chevrons and a brightness gradient show the direction from blocker to successor.
+- Press `L` on a task to choose what it comes after.
 
 ## Running from source (developers)
 
@@ -100,48 +126,75 @@ copied and run.
 
 ### Packaging a portable release (maintainers)
 
+**1. Build the package on Windows.**
+
 With the project dependencies and Windows Rust/C++ build tools already installed, run:
 
 ```bash
 npm run release:portable
 ```
 
-This builds the Windows x64 release, runs the offline audit and creates:
+The command builds the Windows x64 EXE, runs the offline audit, and creates these files
+(the current app version is `0.1.0`):
 
 ```text
 release/
-  woTask-<version>-windows-x64.exe
-  woTask-<version>-windows-x64.zip
+  woTask-0.1.0-windows-x64.exe
+  woTask-0.1.0-windows-x64.zip
   SHA256SUMS.txt
 ```
 
-The ZIP contains only `wotask.exe`: no source code, dependencies, personal database or WebView2
-runtime. The packaging command uses installed tools and cached Rust dependencies only; it fails
-if a required dependency is unavailable rather than downloading it. Generated release files are
-excluded from Git.
+- The ZIP contains only `wotask.exe`.
+- It excludes source code, build dependencies, personal data, and WebView2.
+- The command uses installed tools and cached Rust dependencies. Missing dependencies cause a
+  failure instead of an automatic download.
+- Generated files in `release/` are excluded from Git. Committing or tagging the source does not
+  upload these files to GitHub.
 
-Before publishing, run the verification commands below and smoke-test the packaged EXE on a
-Windows x64 PC with WebView2, without development tools and with networking disabled. Confirm
-that it opens, saves tasks and preserves them after restarting.
+**2. Verify the package.**
 
-Create a GitHub Release for the matching version tag (for example `v0.1.0`), upload the three
-files above as **Assets**, and publish it as the latest release. Building the package does not
-publish it automatically. Regular users then follow the download instructions at the top of
-this README.
+- Run the verification commands in **Development** below.
+- Test the packaged EXE on Windows x64 with WebView2, without development tools and with
+  networking disabled.
+- Confirm that it opens, saves tasks, and preserves them after restarting.
 
-When updating, close woTask and replace the executable in its existing folder. Keep
-`woTask-data` intact so your tasks remain available.
+**3. Attach the files to the GitHub Release.**
+
+To finish the existing `v1.0` release (tag `mark1`):
+
+1. Open that release on GitHub.
+2. Click the **pencil icon** to edit it.
+3. Attach these three local files in the release's asset upload area:
+   - `release/woTask-0.1.0-windows-x64.exe`
+   - `release/woTask-0.1.0-windows-x64.zip`
+   - `release/SHA256SUMS.txt`
+4. Save the release using **Update release**.
+5. Reopen the release and confirm that **Assets** includes the EXE, ZIP, and checksum file
+   alongside GitHub's two source-code archives.
+
+The release title `v1.0` and tag `mark1` do not change the app's internal version. These files
+are built as app version `0.1.0`; describe them accurately in the release notes. For future
+releases, use a title and version tag that match the app version (for example `v0.1.0`).
+
+**Building the package does not publish it automatically.** Once the assets are attached,
+regular users can follow the download steps at the top of this README.
+
+### Updating an existing copy
+
+1. Close woTask.
+2. Replace the old executable with the new one in the same folder.
+3. Keep the `woTask-data` folder intact.
+4. Open the new executable; your tasks remain available.
 
 ## Where your data lives
 
-SQLite, next to the executable, in a folder called `woTask-data`. Put woTask on a USB stick and your
-tasks travel with it.
-
-If that directory is not writable — installed under `C:\Program Files`, say — it falls back to
-`%APPDATA%\woTask`. Settings → Data location shows the path actually in use.
-
-The schema is versioned and migrated on launch. Every migration backs the database up beside itself
-first (`wotask.db.v2.bak`) and rolls back if anything fails its integrity check.
+- **Storage:** a local SQLite database.
+- **Default location:** `woTask-data` beside the executable.
+- **USB use:** copy both the EXE and `woTask-data` to take your tasks with you.
+- **Fallback:** if the executable's folder is not writable, data goes to `%APPDATA%\woTask`.
+- **Find the active location:** open **Settings → Data location**.
+- **Upgrades:** database migrations create a backup beside the database first, such as
+  `wotask.db.v2.bak`, and roll back if the integrity check fails.
 
 ## Keyboard
 
@@ -211,11 +264,12 @@ and the suite stays offline like the app.
 
 ## Offline, for real
 
-`npm run audit:offline` fails the build if anything in the shipped frontend could reach the network.
-There are no CDN links, no remote fonts, no HDRI environment maps and no remote decoders: the Inter
-font is bundled, the lighting is baked from mesh lights at runtime, and every texture is drawn
-procedurally. The Tauri security policy allows no outbound connections, and the end-to-end test
-asserts that a full session makes zero external requests.
+- `npm run audit:offline` checks the source and built frontend for remote asset URLs and network fetches.
+- The Inter font is bundled locally.
+- Lighting is generated from mesh lights; textures are drawn procedurally.
+- No CDN links, remote fonts, HDRI downloads, or remote decoders are used.
+- The Tauri security policy restricts connections to local app and IPC origins.
+- The UI test checks that a full session makes zero external requests.
 
 ## Status
 

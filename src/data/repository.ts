@@ -103,7 +103,7 @@ function convertLegacy(raw: string): BrowserDb {
     createdAt: g.createdAt,
     archivedAt: null,
   }));
-  const tasks: TaskWire[] = (old.tasks ?? []).map(({ listId, ...t }) => ({ ...t, regionId: listId }));
+  const tasks: TaskWire[] = (old.tasks ?? []).map(({ listId, ...t }) => ({ ...t, regionId: listId, blockedBy: null }));
   return { regions: SpaceWireArraySchema.parse(regions), tasks: TaskWireArraySchema.parse(tasks) };
 }
 
@@ -154,8 +154,13 @@ class BrowserRepository implements DataRepository {
   }
   async deleteSpace(id: string): Promise<void> {
     const db = this.read();
+    const dropped = new Set(db.tasks.filter((t) => t.regionId === id).map((t) => t.id));
     db.regions = db.regions.filter((g) => g.id !== id);
-    db.tasks = db.tasks.filter((t) => t.regionId !== id);
+    db.tasks = db.tasks
+      .filter((t) => t.regionId !== id)
+      // Mirrors `blocked_by ... ON DELETE SET NULL`. Chains cannot cross spaces, so this should
+      // never fire; it is here so the two repositories cannot disagree if that ever changes.
+      .map((t) => (t.blockedBy !== null && dropped.has(t.blockedBy) ? { ...t, blockedBy: null } : t));
     this.write(db);
   }
   async getTasks(): Promise<Task[]> {
@@ -170,7 +175,10 @@ class BrowserRepository implements DataRepository {
   }
   async deleteTask(id: string): Promise<void> {
     const db = this.read();
-    db.tasks = db.tasks.filter((t) => t.id !== id);
+    // Mirrors the self-FK's `ON DELETE SET NULL`: a blocker's successors are orphaned, never deleted.
+    db.tasks = db.tasks
+      .filter((t) => t.id !== id)
+      .map((t) => (t.blockedBy === id ? { ...t, blockedBy: null } : t));
     this.write(db);
   }
   async reorderTasks(spaceId: string, orderedIds: string[]): Promise<void> {

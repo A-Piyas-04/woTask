@@ -12,7 +12,8 @@
     "audit:offline": "node scripts/offline-audit.mjs",
     "test:ui": "node scripts/ui-test.mjs",
     "test:palette": "node scripts/palette-test.mjs",
-    "test:visual": "node scripts/visual-test.mjs"
+    "test:visual": "node scripts/visual-test.mjs",
+    "test:chain": "node scripts/chain-test.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.9",

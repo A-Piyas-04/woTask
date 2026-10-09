@@ -35,12 +35,17 @@ pub struct Task {
     pub created_at: i64,
     pub updated_at: i64,
     pub tags: Vec<String>,
+    /// Serialises as `blockedBy`. The one task that must be done before this one; a self-FK.
+    pub blocked_by: Option<String>,
 }
 
 // The number of hues lives only in `PALETTE.spaceHues` (`src/contracts/tokens.ts`). This table
 // stores the raw `color_index` and `spaceHue()` wraps it modulo the palette length at render time,
 // which is the only place that knows how long the palette is. Never clamp here: a clamp against a
 // stale count silently rewrites the user's colour choice on every save.
+
+/// The version a fully migrated database reports in `PRAGMA user_version`.
+const SCHEMA_VERSION: i64 = MIGRATIONS.len() as i64;
 
 const MIGRATIONS: &[&str] = &[
     // v1
@@ -110,6 +115,15 @@ const MIGRATIONS: &[&str] = &[
     DROP TABLE lists;
     CREATE INDEX idx_tasks_region ON tasks(region_id, position);
     CREATE INDEX idx_tasks_due ON tasks(due_at);
+    ",
+    // v3: chained tasks. One optional predecessor per task, as a self-referencing foreign key, so
+    // deleting a blocker unlinks its successors instead of deleting them. Purely additive - no table
+    // rebuild and no existing data touched, so `foreign_key_check` trivially passes (every existing
+    // row gets NULL). SQLite only allows ADD COLUMN with a REFERENCES clause when the default is
+    // NULL, which is why there is no DEFAULT and no NOT NULL here.
+    "
+    ALTER TABLE tasks ADD COLUMN blocked_by TEXT REFERENCES tasks(id) ON DELETE SET NULL;
+    CREATE INDEX idx_tasks_blocked_by ON tasks(blocked_by);
     ",
 ];
 
@@ -250,7 +264,7 @@ pub fn get_tasks(conn: &Connection) -> rusqlite::Result<Vec<Task>> {
     }
 
     let mut stmt = conn.prepare(
-        "SELECT id, region_id, title, notes, priority, due_at, completed_at, position, created_at, updated_at
+        "SELECT id, region_id, title, notes, priority, due_at, completed_at, position, created_at, updated_at, blocked_by
          FROM tasks ORDER BY region_id, position, created_at",
     )?;
     let rows = stmt.query_map([], |r| {
@@ -266,6 +280,7 @@ pub fn get_tasks(conn: &Connection) -> rusqlite::Result<Vec<Task>> {
             position: r.get(7)?,
             created_at: r.get(8)?,
             updated_at: r.get(9)?,
+            blocked_by: r.get(10)?,
             id,
         })
     })?;
@@ -282,15 +297,15 @@ pub fn get_tasks(conn: &Connection) -> rusqlite::Result<Vec<Task>> {
 
 fn save_task_tx(tx: &Transaction, t: &Task) -> rusqlite::Result<()> {
     tx.execute(
-        "INSERT INTO tasks (id, region_id, title, notes, priority, due_at, completed_at, position, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+        "INSERT INTO tasks (id, region_id, title, notes, priority, due_at, completed_at, position, created_at, updated_at, blocked_by)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
          ON CONFLICT(id) DO UPDATE SET
             region_id = excluded.region_id, title = excluded.title, notes = excluded.notes,
             priority = excluded.priority, due_at = excluded.due_at, completed_at = excluded.completed_at,
-            position = excluded.position, updated_at = excluded.updated_at",
+            position = excluded.position, updated_at = excluded.updated_at, blocked_by = excluded.blocked_by",
         params![
             t.id, t.region_id, t.title, t.notes, t.priority, t.due_at, t.completed_at, t.position, t.created_at,
-            t.updated_at
+            t.updated_at, t.blocked_by
         ],
     )?;
     tx.execute("DELETE FROM task_tags WHERE task_id = ?1", params![t.id])?;
@@ -337,8 +352,16 @@ pub fn seed(conn: &mut Connection, regions: &[Region], tasks: &[Task]) -> rusqli
     for g in regions {
         save_region_on(&tx, g)?;
     }
+    // Two passes, because `blocked_by` is a self-FK: writing a successor before its blocker exists
+    // would violate it. Rows first with no links, then link them up. Callers must be free to pass
+    // tasks in any order - fixtures and undo-of-delete both do.
     for t in tasks {
-        save_task_tx(&tx, t)?;
+        save_task_tx(&tx, &Task { blocked_by: None, ..t.clone() })?;
+    }
+    for t in tasks {
+        if t.blocked_by.is_some() {
+            tx.execute("UPDATE tasks SET blocked_by = ?1 WHERE id = ?2", params![t.blocked_by, t.id])?;
+        }
     }
     tx.commit()
 }
@@ -394,6 +417,7 @@ mod tests {
             created_at: 1,
             updated_at: 1,
             tags: vec!["a".into(), "b".into()],
+            blocked_by: None,
         }
     }
 
@@ -451,12 +475,12 @@ mod tests {
     }
 
     #[test]
-    fn v1_to_v2_keeps_every_row() {
+    fn v1_to_current_keeps_every_row() {
         let conn = Connection::open_in_memory().unwrap();
         v1_db(&conn);
         migrate(&conn, None).unwrap();
         migrate(&conn, None).unwrap(); // second run is a no-op
-        assert_eq!(version(&conn), 2);
+        assert_eq!(version(&conn), SCHEMA_VERSION);
         let fk: i64 = conn.pragma_query_value(None, "foreign_keys", |r| r.get(0)).unwrap();
         assert_eq!(fk, 1);
 
@@ -504,6 +528,68 @@ mod tests {
     }
 
     /// `WOTASK_DB=<copy of a real wotask.db> cargo test -- --ignored real_database`
+    /// v3 is additive, so it must leave every existing row untouched and simply widen the table.
+    #[test]
+    fn v2_to_v3_adds_blocked_by() {
+        let conn = Connection::open_in_memory().unwrap();
+        v1_db(&conn);
+        // Stop at v2: the schema as it shipped before chains existed. Foreign keys go off around the
+        // step exactly as `migrate` does them - v2 rebuilds the tasks table, and with FKs on the
+        // `DROP TABLE tasks` would cascade every task_tags row away.
+        set_foreign_keys(&conn, false).unwrap();
+        conn.execute_batch(&format!("BEGIN; {} PRAGMA user_version = 2; COMMIT;", MIGRATIONS[1])).unwrap();
+        set_foreign_keys(&conn, true).unwrap();
+        // Read the v2 rows with raw SQL: `get_tasks` speaks the current schema, which this database
+        // does not have yet.
+        let before: Vec<(String, String, i64)> = {
+            let mut stmt = conn.prepare("SELECT id, title, position FROM tasks ORDER BY id").unwrap();
+            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap().map(|r| r.unwrap()).collect()
+        };
+        assert_eq!(before.len(), 3);
+
+        migrate(&conn, None).unwrap();
+        migrate(&conn, None).unwrap(); // second run is a no-op
+        assert_eq!(version(&conn), SCHEMA_VERSION);
+
+        let after = get_tasks(&conn).unwrap();
+        assert_eq!(after.len(), before.len());
+        assert!(after.iter().all(|t| t.blocked_by.is_none()));
+        for (id, title, position) in &before {
+            let a = after.iter().find(|t| &t.id == id).unwrap();
+            assert_eq!((&a.title, a.position), (title, *position));
+        }
+        // Tags survive a widening migration too: t1 had two.
+        assert_eq!(after.iter().find(|t| t.id == "t1").unwrap().tags, vec!["x", "y"]);
+    }
+
+    /// Deleting a blocker must orphan its successors, never cascade into deleting them.
+    #[test]
+    fn deleting_a_blocker_unlinks_its_successors() {
+        let mut conn = mem();
+        let mut b = task("2", 1);
+        b.blocked_by = Some("1".into());
+        seed(&mut conn, &[region("r", 0)], &[task("1", 0), b]).unwrap();
+        assert_eq!(get_tasks(&conn).unwrap().iter().filter(|t| t.blocked_by.is_some()).count(), 1);
+
+        delete_task(&conn, "1").unwrap();
+        let tasks = get_tasks(&conn).unwrap();
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0].id, "2");
+        assert_eq!(tasks[0].blocked_by, None);
+    }
+
+    /// `blocked_by` is a self-FK, so seeding a successor before its blocker must still work.
+    #[test]
+    fn seed_accepts_chains_in_any_order() {
+        let mut conn = mem();
+        let mut b = task("2", 1);
+        b.blocked_by = Some("1".into());
+        seed(&mut conn, &[region("r", 0)], &[b, task("1", 0)]).unwrap();
+        let tasks = get_tasks(&conn).unwrap();
+        assert_eq!(tasks.len(), 2);
+        assert_eq!(tasks.iter().find(|t| t.id == "2").unwrap().blocked_by, Some("1".into()));
+    }
+
     #[test]
     #[ignore]
     fn real_database_migrates_without_loss() {
@@ -518,7 +604,7 @@ mod tests {
         let after = (count("SELECT COUNT(*) FROM regions"), count("SELECT COUNT(*) FROM tasks"), count("SELECT COUNT(*) FROM task_tags"));
         println!("v{v} -> v{}: {before:?} -> {after:?}", version(&conn));
         assert_eq!(before, after);
-        assert_eq!(version(&conn), 2);
+        assert_eq!(version(&conn), SCHEMA_VERSION);
     }
 
     #[test]

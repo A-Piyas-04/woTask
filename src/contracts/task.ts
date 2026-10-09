@@ -30,9 +30,25 @@ export const TaskObjectSchema = z.object({
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
   tags: z.array(z.string().min(1).max(40)),
+  /**
+   * Id of the one task that must be completed before this one. `null` (never `undefined` - the Rust
+   * side serialises `None` as null) for an unchained task or for the first step of a chain.
+   *
+   * One predecessor in, many successors out, so chains form a forest and can fork: completing one
+   * task may release several. A task carrying a `blockedBy` is only actually *locked* while that
+   * blocker is still incomplete, which is derived, never stored - see `isLocked` in the store.
+   *
+   * `.default(null)` is load-bearing. Rows written before migration v3 and localStorage blobs
+   * written by older builds have no such key, and without a default they would fail to parse.
+   */
+  blockedBy: z.string().min(1).nullable().default(null),
 });
 
-export const TaskSchema = TaskObjectSchema;
+/** Cross-field rules. Anything needing to see *other* tasks (cycles, same-space) lives in the store. */
+export const TaskSchema = TaskObjectSchema.refine((t) => t.blockedBy !== t.id, {
+  message: 'a task cannot block itself',
+  path: ['blockedBy'],
+});
 export type Task = z.infer<typeof TaskObjectSchema>;
 
 export const SpaceKindSchema = z.enum(['category', 'project', 'goal']);
@@ -75,9 +91,37 @@ export const TaskArraySchema = z.array(TaskSchema);
 export const SpaceArraySchema = z.array(SpaceSchema);
 
 /** Fields a user may change on an existing task. */
-export type TaskPatch = Partial<Pick<Task, 'title' | 'notes' | 'priority' | 'dueAt' | 'completedAt' | 'spaceId' | 'tags'>>;
+export type TaskPatch = Partial<
+  Pick<Task, 'title' | 'notes' | 'priority' | 'dueAt' | 'completedAt' | 'spaceId' | 'tags' | 'blockedBy'>
+>;
 
 /** Fields a user may change on an existing space. */
 export type SpacePatch = Partial<Pick<Space, 'name' | 'kind' | 'description' | 'colorIndex' | 'targetDate' | 'archivedAt'>>;
 
 export const isCompleted = (t: Task): boolean => t.completedAt !== null;
+
+/**
+ * Everything the scene needs to know about one task's place in the chain forest. Entirely derived
+ * from the task list, never stored. It lives in `contracts/` so `src/scene/` can type against it
+ * without importing from `src/state/`.
+ */
+export interface ChainMeta {
+  blockedBy: string | null;
+  /** The blocker exists and is not complete. A blocker that was deleted never locks. */
+  locked: boolean;
+  /** Completed while still blocked: the user chose "Complete anyway", or the blocker was reopened. */
+  outOfOrder: boolean;
+  /** 0 for an unchained task or the first step of a chain. */
+  depth: number;
+  /** The first step of this task's chain; its own id when it is that step. */
+  rootId: string;
+  successorIds: string[];
+  /** Position among the blocker's successors, and how many there are: drives the fork splay. */
+  forkIndex: number;
+  forkCount: number;
+  /** The blocker's `completedAt` (0 when none). Changes exactly when the blocker is completed. */
+  unlockToken: number;
+}
+
+/** Keyed by task id. Only chained tasks appear; look-ups for a loose task return undefined. */
+export type ChainIndex = Readonly<Record<string, ChainMeta>>;

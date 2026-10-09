@@ -12,6 +12,8 @@ interface SpaceSeed {
   description: string | null;
   targetInDays: number | null;
   tasks: Seed[];
+  /** Chain links as `{ successorIndex: blockerIndex }`, both indices into `tasks`. */
+  chains?: Record<number, number>;
 }
 
 const DEMO: SpaceSeed[] = [
@@ -33,6 +35,8 @@ const DEMO: SpaceSeed[] = [
       ['Draft launch tweet thread', 0, null, false, ['marketing']],
       ['Load-test sync with 10k tasks', 1, 9, true, ['perf']],
     ],
+    // The pricing copy gates both the translation and the demo video; the tweet thread waits on the video.
+    chains: { 4: 0, 1: 0, 8: 1 },
   },
   {
     id: 'space-health',
@@ -50,6 +54,8 @@ const DEMO: SpaceSeed[] = [
       ['First 8 km long run', 2, 14, false, ['running']],
       ['Register for the December 10K', 1, 20, false, []],
     ],
+    // A straight run-up to the race.
+    chains: { 6: 0, 7: 6 },
   },
   {
     id: 'space-study',
@@ -104,6 +110,10 @@ function build(seeds: SpaceSeed[], now: number): { spaces: Space[]; tasks: Task[
   }));
   const tasks: Task[] = [];
   for (const g of seeds) {
+    const blocker = (i: number): string | null => {
+      const from = g.chains?.[i];
+      return from === undefined ? null : `${g.id}-task-${from}`;
+    };
     g.tasks.forEach(([title, priority, due, done, tags, notes], i) => {
       const createdAt = now - (40 - i) * HOUR;
       tasks.push({
@@ -118,6 +128,7 @@ function build(seeds: SpaceSeed[], now: number): { spaces: Space[]; tasks: Task[
         createdAt,
         updatedAt: createdAt,
         tags,
+        blockedBy: blocker(i),
       });
     });
   }
@@ -212,6 +223,70 @@ export const FIXTURES: Record<string, (now: number) => { spaces: Space[]; tasks:
         targetInDays: r % 3 === 1 ? 20 : null,
         tasks: Array.from({ length: (r * 7) % 9 }, (_, i) => [`Task ${r + 1}.${i + 1}`, P[(i + r) % 4], null, i % 5 === 4, []] satisfies Seed),
       })),
+      now,
+    ),
+  /** A single linear chain: one unlocked head followed by four locked steps. */
+  chains: (now) =>
+    build(
+      [
+        {
+          id: 'space-chains',
+          name: 'Chains',
+          kind: 'project',
+          description: null,
+          targetInDays: null,
+          tasks: [
+            ['Draft the schema', 3, 1, false, ['design']],
+            ['Write the migration', 2, null, false, ['db']],
+            ['Backfill existing rows', 2, null, false, ['db']],
+            ['Ship behind a flag', 1, null, false, ['release']],
+            ['Remove the flag', 0, null, false, ['release']],
+            ['Unrelated loose task', 1, null, false, []],
+          ],
+          chains: { 1: 0, 2: 1, 3: 2, 4: 3 },
+        },
+      ],
+      now,
+    ),
+  /** One root forking three ways, with a second fork further down and a completed blocker. */
+  forks: (now) =>
+    build(
+      [
+        {
+          id: 'space-forks',
+          name: 'Forks',
+          kind: 'project',
+          description: null,
+          targetInDays: null,
+          tasks: [
+            ['Agree the API shape', 2, null, true, ['design']],
+            ['Build the client', 3, 2, false, ['fe']],
+            ['Build the server', 3, 2, false, ['be']],
+            ['Write the docs', 1, null, false, ['docs']],
+            ['Client integration tests', 2, null, false, ['fe']],
+            ['Server load tests', 2, null, false, ['be']],
+            ['Announce the API', 0, null, false, ['marketing']],
+          ],
+          // 0 is complete, so 1/2/3 are unlocked; everything below them is still locked.
+          chains: { 1: 0, 2: 0, 3: 0, 4: 1, 5: 2, 6: 4 },
+        },
+      ],
+      now,
+    ),
+  /** A long chain plus edge cases: an overdue locked step and one completed out of order. */
+  lockedDeep: (now) =>
+    build(
+      [
+        {
+          id: 'space-locked',
+          name: 'Locked',
+          kind: 'goal',
+          description: null,
+          targetInDays: 30,
+          tasks: Array.from({ length: 14 }, (_, i) => [`Step ${i + 1}`, P[i % 4], i === 5 ? -3 : null, i === 9, []] satisfies Seed),
+          chains: Object.fromEntries(Array.from({ length: 13 }, (_, i) => [i + 1, i])),
+        },
+      ],
       now,
     ),
   stress: (now) =>

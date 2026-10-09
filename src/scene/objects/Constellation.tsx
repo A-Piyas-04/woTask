@@ -2,7 +2,7 @@ import { Html } from '@react-three/drei';
 import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { useEffect, useMemo, useRef, type RefObject } from 'react';
 import * as THREE from 'three';
-import { CAMERA, CONSTELLATION, MATERIALS } from '../../contracts/tokens';
+import { CAMERA, CONSTELLATION, MATERIALS, regionHue } from '../../contracts/tokens';
 import { FRAME, pointerState, type PositionRegistry } from '../interaction';
 import type { Zone } from '../layout';
 import { createGlowMaterial, sharedGeometry } from '../materials/materials';
@@ -13,17 +13,18 @@ export interface ConstellationProps {
   ambient: boolean;
   registry: PositionRegistry;
   labelLayer: RefObject<HTMLDivElement | null>;
-  onSelectList(id: string): void;
+  onSelectRegion(id: string): void;
 }
 
 const ORBIT_SEGMENTS = 160;
 
-/** Hub, orbit ring and the light lines joining a list's tasks. Orbs are rendered separately. */
-export function Constellation({ zone, active, ambient, registry, labelLayer, onSelectList }: ConstellationProps) {
-  const { list, orbs, center } = zone;
+/** Hub, orbit ring and the light lines joining a region's tasks. Orbs are rendered separately. */
+export function Constellation({ zone, active, ambient, registry, labelLayer, onSelectRegion }: ConstellationProps) {
+  const { region, orbs, center } = zone;
+  const color = regionHue(region.colorIndex);
   const hub = useRef<THREE.Mesh>(null);
 
-  const hubMat = useMemo(() => createGlowMaterial(list.color, MATERIALS.hub.intensity), [list.color]);
+  const hubMat = useMemo(() => createGlowMaterial(color, MATERIALS.hub.intensity), [color]);
   useEffect(() => () => hubMat.dispose(), [hubMat]);
 
   // One line per orb along the constellation tree, in a single draw call.
@@ -33,7 +34,7 @@ export function Constellation({ zone, active, ambient, registry, labelLayer, onS
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(segs * 6), 3));
     const colors = new Float32Array(segs * 6);
-    const c = new THREE.Color(list.color);
+    const c = new THREE.Color(color);
     edges.forEach((parent, s) => {
       const k = parent === -1 ? MATERIALS.lines.chainOpacity * 1.4 : MATERIALS.lines.chainOpacity;
       for (let v = 0; v < 2; v++) {
@@ -50,7 +51,7 @@ export function Constellation({ zone, active, ambient, registry, labelLayer, onS
       toneMapped: false,
     });
     return new THREE.LineSegments(geo, mat);
-  }, [edges, list.color]);
+  }, [edges, color]);
   useEffect(
     () => () => {
       lines.geometry.dispose();
@@ -68,7 +69,7 @@ export function Constellation({ zone, active, ambient, registry, labelLayer, onS
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
     const mat = new THREE.LineDashedMaterial({
-      color: new THREE.Color(list.color).multiplyScalar(1.4),
+      color: new THREE.Color(color).multiplyScalar(1.4),
       transparent: true,
       opacity: MATERIALS.orbit.opacity,
       dashSize: 0.35,
@@ -79,7 +80,7 @@ export function Constellation({ zone, active, ambient, registry, labelLayer, onS
     const loop = new THREE.LineLoop(geo, mat);
     loop.computeLineDistances();
     return loop;
-  }, [zone.radius, list.color]);
+  }, [zone.radius, color]);
   useEffect(
     () => () => {
       orbit.geometry.dispose();
@@ -114,7 +115,7 @@ export function Constellation({ zone, active, ambient, registry, labelLayer, onS
 
   const onHubClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
-    if (!pointerState.dragged) onSelectList(list.id);
+    if (!pointerState.dragged) onSelectRegion(region.id);
   };
 
   const remaining = orbs.filter((o) => o.task.completedAt === null).length;
@@ -145,9 +146,9 @@ export function Constellation({ zone, active, ambient, registry, labelLayer, onS
           pointerEvents="none"
           zIndexRange={[10, 0]}
         >
-          <div className={`zone-label${active ? ' is-active' : ''}`} style={{ ['--zone-color' as string]: list.color }}>
+          <div className={`zone-label${active ? ' is-active' : ''}`} style={{ ['--zone-color' as string]: color }}>
             <span className="zone-name" lang="bn-BD en">
-              {list.name}
+              {region.name}
             </span>
             <span className="zone-count">{orbs.length === 0 ? 'empty — press N to add' : `${remaining} open · ${orbs.length - remaining} done`}</span>
           </div>

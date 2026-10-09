@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { COMMANDS } from '../contracts/events';
-import { useStore } from '../state/store';
+import { useStore, visibleRegions } from '../state/store';
 import { runCommand } from './shortcuts';
 
 interface Item {
   key: string;
-  kind: 'command' | 'task' | 'list';
+  kind: 'command' | 'task' | 'region';
   title: string;
   hint?: string;
   run(): void;
@@ -39,7 +39,7 @@ export function CommandPalette() {
   const open = useStore((s) => s.paletteOpen);
   const setOpen = useStore((s) => s.setPaletteOpen);
   const tasks = useStore((s) => s.tasks);
-  const lists = useStore((s) => s.lists);
+  const regions = useStore((s) => s.regions);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -57,7 +57,7 @@ export function CommandPalette() {
   }, [open]);
 
   const items = useMemo<Item[]>(() => {
-    const listName = new Map(lists.map((l) => [l.id, l.name]));
+    const regionName = new Map(regions.map((g) => [g.id, g.name]));
     const all: Item[] = [
       ...COMMANDS.filter((c) => c.id !== 'palette.open').map<Item>((c) => ({
         key: `c:${c.id}`,
@@ -66,20 +66,20 @@ export function CommandPalette() {
         hint: c.shortcut,
         run: () => runCommand(c.id),
       })),
-      ...lists.map<Item>((l) => ({
-        key: `l:${l.id}`,
-        kind: 'list',
-        title: `Go to ${l.name}`,
-        run: () => useStore.getState().setActiveList(l.id),
+      ...visibleRegions(regions).map<Item>((g) => ({
+        key: `g:${g.id}`,
+        kind: 'region',
+        title: `Go to ${g.name}`,
+        run: () => useStore.getState().setActiveRegion(g.id),
       })),
       ...tasks.map<Item>((t) => ({
         key: `t:${t.id}`,
         kind: 'task',
         title: t.title,
-        hint: `${listName.get(t.listId) ?? ''}${t.completedAt !== null ? ' · done' : ''}`,
+        hint: `${regionName.get(t.regionId) ?? ''}${t.completedAt !== null ? ' · done' : ''}`,
         run: () => {
           const s = useStore.getState();
-          s.setActiveList(t.listId);
+          s.setActiveRegion(t.regionId);
           if (t.completedAt !== null && !s.showCompleted) s.toggleShowCompleted();
           s.select(t.id);
         },
@@ -93,7 +93,7 @@ export function CommandPalette() {
       .sort((a, b) => b.score - a.score)
       .slice(0, 40)
       .map((x) => x.item);
-  }, [query, tasks, lists]);
+  }, [query, tasks, regions]);
 
   if (!open) return null;
 
@@ -130,15 +130,15 @@ export function CommandPalette() {
             setActive(0);
           }}
           onKeyDown={onKeyDown}
-          placeholder="Search tasks, lists and commands…"
+          placeholder="Search tasks, regions and commands…"
           aria-label="Search"
           role="combobox"
           aria-expanded="true"
-          aria-controls="palette-list"
+          aria-controls="palette-options"
           aria-activedescendant={items[active] ? `pi-${items[active].key}` : undefined}
           lang="bn-BD en"
         />
-        <ul className="palette-list" id="palette-list" role="listbox">
+        <ul className="palette-options" id="palette-options" role="listbox">
           {items.length === 0 && <li className="palette-empty">No matches</li>}
           {items.map((item, i) => (
             <li
@@ -150,7 +150,7 @@ export function CommandPalette() {
               onMouseEnter={() => setActive(i)}
               onClick={() => choose(item)}
             >
-              <span className={`palette-kind kind-${item.kind}`}>{item.kind === 'command' ? '›' : item.kind === 'list' ? '◆' : '○'}</span>
+              <span className={`palette-kind kind-${item.kind}`}>{item.kind === 'command' ? '›' : item.kind === 'region' ? '◆' : '○'}</span>
               <span className="palette-title">{item.title}</span>
               {item.hint && <span className="palette-hint">{item.hint}</span>}
             </li>

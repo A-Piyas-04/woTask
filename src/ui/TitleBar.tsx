@@ -2,7 +2,7 @@ import { windowControls } from '../data/repository';
 import { useStore } from '../state/store';
 
 export function TitleBar() {
-  const listName = useStore((s) => s.lists.find((l) => l.id === s.activeListId)?.name ?? '');
+  const regionName = useStore((s) => s.regions.find((g) => g.id === s.activeRegionId)?.name ?? '');
   const openSettings = useStore((s) => s.setSettingsOpen);
   const openPalette = useStore((s) => s.setPaletteOpen);
 
@@ -11,9 +11,9 @@ export function TitleBar() {
       <div className="titlebar-brand" data-tauri-drag-region>
         <span className="brand-mark" aria-hidden="true" />
         <span data-tauri-drag-region>woTask</span>
-        {listName && (
-          <span className="titlebar-list" data-tauri-drag-region>
-            / {listName}
+        {regionName && (
+          <span className="titlebar-region" data-tauri-drag-region>
+            / {regionName}
           </span>
         )}
       </div>

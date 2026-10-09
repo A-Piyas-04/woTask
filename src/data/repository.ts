@@ -1,26 +1,26 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { TaskRepository } from '../contracts/repository';
-import { ListArraySchema, ListSchema, TaskArraySchema, TaskSchema, type List, type Task } from '../contracts/task';
+import { RegionArraySchema, RegionSchema, TaskArraySchema, TaskSchema, type Region, type Task } from '../contracts/task';
 
 export const isTauri = (): boolean => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
 class TauriRepository implements TaskRepository {
   readonly kind = 'tauri' as const;
 
-  async listLists(): Promise<List[]> {
-    return ListArraySchema.parse(await invoke('list_lists'));
+  async getRegions(): Promise<Region[]> {
+    return RegionArraySchema.parse(await invoke('get_regions'));
   }
-  async createList(list: List): Promise<List> {
-    return ListSchema.parse(await invoke('save_list', { list: ListSchema.parse(list) }));
+  async createRegion(region: Region): Promise<Region> {
+    return RegionSchema.parse(await invoke('save_region', { region: RegionSchema.parse(region) }));
   }
-  async updateList(list: List): Promise<List> {
-    return this.createList(list);
+  async updateRegion(region: Region): Promise<Region> {
+    return this.createRegion(region);
   }
-  async deleteList(id: string): Promise<void> {
-    await invoke('delete_list', { id });
+  async deleteRegion(id: string): Promise<void> {
+    await invoke('delete_region', { id });
   }
-  async listTasks(): Promise<Task[]> {
-    return TaskArraySchema.parse(await invoke('list_tasks'));
+  async getTasks(): Promise<Task[]> {
+    return TaskArraySchema.parse(await invoke('get_tasks'));
   }
   async saveTask(task: Task): Promise<Task> {
     return TaskSchema.parse(await invoke('save_task', { task: TaskSchema.parse(task) }));
@@ -28,62 +28,97 @@ class TauriRepository implements TaskRepository {
   async deleteTask(id: string): Promise<void> {
     await invoke('delete_task', { id });
   }
-  async reorderTasks(listId: string, orderedIds: string[]): Promise<void> {
-    await invoke('reorder_tasks', { listId, orderedIds });
+  async reorderTasks(regionId: string, orderedIds: string[]): Promise<void> {
+    await invoke('reorder_tasks', { regionId, orderedIds });
   }
-  async seed(lists: List[], tasks: Task[]): Promise<void> {
-    await invoke('seed', { lists: ListArraySchema.parse(lists), tasks: TaskArraySchema.parse(tasks) });
+  async seed(regions: Region[], tasks: Task[]): Promise<void> {
+    await invoke('seed', { regions: RegionArraySchema.parse(regions), tasks: TaskArraySchema.parse(tasks) });
   }
   async dataPath(): Promise<string> {
     return String(await invoke('data_path'));
   }
 }
 
-const STORAGE_KEY = 'wotask:v1';
+export const BROWSER_STORAGE_KEY = 'wotask:v2';
+/** Pre-region storage format; converted once, then removed. */
+const LEGACY_STORAGE_KEY = 'wotask:v1';
+const LEGACY_HUE_COUNT = 8;
 
 interface BrowserDb {
-  lists: List[];
+  regions: Region[];
   tasks: Task[];
+}
+
+function convertLegacy(raw: string): BrowserDb {
+  const old = JSON.parse(raw) as {
+    lists?: { id: string; name: string; position: number; createdAt: number }[];
+    tasks?: (Omit<Task, 'regionId'> & { listId: string })[];
+  };
+  const regions: Region[] = (old.lists ?? []).map((g) => ({
+    id: g.id,
+    name: g.name,
+    kind: 'category',
+    description: null,
+    colorIndex: ((g.position % LEGACY_HUE_COUNT) + LEGACY_HUE_COUNT) % LEGACY_HUE_COUNT,
+    position: g.position,
+    targetDate: null,
+    createdAt: g.createdAt,
+    archivedAt: null,
+  }));
+  const tasks: Task[] = (old.tasks ?? []).map(({ listId, ...t }) => ({ ...t, regionId: listId }));
+  return { regions: RegionArraySchema.parse(regions), tasks: TaskArraySchema.parse(tasks) };
 }
 
 /** Used when running in a plain browser tab (`npm run dev`). */
 class BrowserRepository implements TaskRepository {
   readonly kind = 'browser' as const;
 
+  constructor(private readonly key: string) {
+    if (key !== BROWSER_STORAGE_KEY) return;
+    try {
+      const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (legacy && !localStorage.getItem(BROWSER_STORAGE_KEY)) {
+        this.write(convertLegacy(legacy));
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
+      }
+    } catch {
+      /* unreadable legacy data is left in place untouched */
+    }
+  }
+
   private read(): BrowserDb {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return { lists: [], tasks: [] };
-      const parsed: unknown = JSON.parse(raw);
-      const obj = parsed as { lists?: unknown; tasks?: unknown };
-      return { lists: ListArraySchema.parse(obj.lists ?? []), tasks: TaskArraySchema.parse(obj.tasks ?? []) };
+      const raw = localStorage.getItem(this.key);
+      if (!raw) return { regions: [], tasks: [] };
+      const obj = JSON.parse(raw) as { regions?: unknown; tasks?: unknown };
+      return { regions: RegionArraySchema.parse(obj.regions ?? []), tasks: TaskArraySchema.parse(obj.tasks ?? []) };
     } catch {
-      return { lists: [], tasks: [] };
+      return { regions: [], tasks: [] };
     }
   }
   private write(db: BrowserDb): void {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+    localStorage.setItem(this.key, JSON.stringify(db));
   }
 
-  async listLists(): Promise<List[]> {
-    return [...this.read().lists].sort((a, b) => a.position - b.position);
+  async getRegions(): Promise<Region[]> {
+    return [...this.read().regions].sort((a, b) => a.position - b.position);
   }
-  async createList(list: List): Promise<List> {
+  async createRegion(region: Region): Promise<Region> {
     const db = this.read();
-    db.lists = [...db.lists.filter((l) => l.id !== list.id), ListSchema.parse(list)];
+    db.regions = [...db.regions.filter((g) => g.id !== region.id), RegionSchema.parse(region)];
     this.write(db);
-    return list;
+    return region;
   }
-  async updateList(list: List): Promise<List> {
-    return this.createList(list);
+  async updateRegion(region: Region): Promise<Region> {
+    return this.createRegion(region);
   }
-  async deleteList(id: string): Promise<void> {
+  async deleteRegion(id: string): Promise<void> {
     const db = this.read();
-    db.lists = db.lists.filter((l) => l.id !== id);
-    db.tasks = db.tasks.filter((t) => t.listId !== id);
+    db.regions = db.regions.filter((g) => g.id !== id);
+    db.tasks = db.tasks.filter((t) => t.regionId !== id);
     this.write(db);
   }
-  async listTasks(): Promise<Task[]> {
+  async getTasks(): Promise<Task[]> {
     return this.read().tasks;
   }
   async saveTask(task: Task): Promise<Task> {
@@ -98,23 +133,24 @@ class BrowserRepository implements TaskRepository {
     db.tasks = db.tasks.filter((t) => t.id !== id);
     this.write(db);
   }
-  async reorderTasks(listId: string, orderedIds: string[]): Promise<void> {
+  async reorderTasks(regionId: string, orderedIds: string[]): Promise<void> {
     const db = this.read();
     const index = new Map(orderedIds.map((id, i) => [id, i]));
-    db.tasks = db.tasks.map((t) => (t.listId === listId && index.has(t.id) ? { ...t, position: index.get(t.id) ?? t.position } : t));
+    db.tasks = db.tasks.map((t) => (t.regionId === regionId && index.has(t.id) ? { ...t, position: index.get(t.id) ?? t.position } : t));
     this.write(db);
   }
-  async seed(lists: List[], tasks: Task[]): Promise<void> {
-    if (this.read().lists.length > 0) return;
-    this.write({ lists: ListArraySchema.parse(lists), tasks: TaskArraySchema.parse(tasks) });
+  async seed(regions: Region[], tasks: Task[]): Promise<void> {
+    if (this.read().regions.length > 0) return;
+    this.write({ regions: RegionArraySchema.parse(regions), tasks: TaskArraySchema.parse(tasks) });
   }
   async dataPath(): Promise<string> {
     return 'Browser localStorage (development mode)';
   }
 }
 
-export function createRepository(): TaskRepository {
-  return isTauri() ? new TauriRepository() : new BrowserRepository();
+/** `browserKey` lets dev test fixtures use an isolated localStorage slot. */
+export function createRepository(browserKey: string = BROWSER_STORAGE_KEY): TaskRepository {
+  return isTauri() ? new TauriRepository() : new BrowserRepository(browserKey);
 }
 
 export const windowControls = {

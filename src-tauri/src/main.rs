@@ -41,10 +41,10 @@ fn main() {
         .manage(db::Db(Mutex::new(conn)))
         .manage(paths::DataDir(data_dir))
         .invoke_handler(tauri::generate_handler![
-            commands::list_lists,
-            commands::save_list,
-            commands::delete_list,
-            commands::list_tasks,
+            commands::get_regions,
+            commands::save_region,
+            commands::delete_region,
+            commands::get_tasks,
             commands::save_task,
             commands::delete_task,
             commands::reorder_tasks,

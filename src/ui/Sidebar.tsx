@@ -1,115 +1,106 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { useStore } from '../state/store';
-import { NEW_LIST_EVENT } from './shortcuts';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import { REGION_KIND_LABELS } from '../contracts/task';
+import { regionHue } from '../contracts/tokens';
+import { useStore, visibleRegions } from '../state/store';
+import { NEW_REGION_EVENT } from './shortcuts';
 
 export function Sidebar() {
-  const lists = useStore((s) => s.lists);
+  const regions = useStore((s) => s.regions);
   const tasks = useStore((s) => s.tasks);
-  const activeListId = useStore((s) => s.activeListId);
-  const setActiveList = useStore((s) => s.setActiveList);
-  const createList = useStore((s) => s.createList);
-  const renameList = useStore((s) => s.renameList);
-  const deleteList = useStore((s) => s.deleteList);
+  const activeRegionId = useStore((s) => s.activeRegionId);
+  const setActiveRegion = useStore((s) => s.setActiveRegion);
+  const openRegionEditor = useStore((s) => s.openRegionEditor);
+  const setCreatingRegion = useStore((s) => s.setCreatingRegion);
+  const deleteRegion = useStore((s) => s.deleteRegion);
+  const unarchiveRegion = useStore((s) => s.unarchiveRegion);
+  const notice = useStore((s) => s.regionNotice);
   const showCompleted = useStore((s) => s.showCompleted);
   const toggleShowCompleted = useStore((s) => s.toggleShowCompleted);
-
-  const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [renamingId, setRenamingId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState('');
-  const newRef = useRef<HTMLInputElement>(null);
+  const [archiveOpen, setArchiveOpen] = useState(false);
 
   useEffect(() => {
-    const onNew = () => setCreating(true);
-    window.addEventListener(NEW_LIST_EVENT, onNew);
-    return () => window.removeEventListener(NEW_LIST_EVENT, onNew);
-  }, []);
-  useEffect(() => {
-    if (creating) newRef.current?.focus();
-  }, [creating]);
+    const onNew = () => setCreatingRegion(true);
+    window.addEventListener(NEW_REGION_EVENT, onNew);
+    return () => window.removeEventListener(NEW_REGION_EVENT, onNew);
+  }, [setCreatingRegion]);
+
+  const shown = useMemo(() => visibleRegions(regions), [regions]);
+  const archived = useMemo(() => regions.filter((g) => g.archivedAt !== null), [regions]);
+  const grouped = new Set(shown.map((g) => g.kind)).size > 1;
 
   const counts = new Map<string, number>();
-  for (const t of tasks) if (t.completedAt === null) counts.set(t.listId, (counts.get(t.listId) ?? 0) + 1);
-
-  const submitNew = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-    if (e.key === 'Enter') {
-      void createList(newName);
-      setNewName('');
-      setCreating(false);
-    } else if (e.key === 'Escape') {
-      setNewName('');
-      setCreating(false);
-    }
-  };
-
-  const submitRename = (e: KeyboardEvent<HTMLInputElement>, id: string) => {
-    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-    if (e.key === 'Enter') {
-      void renameList(id, renameValue);
-      setRenamingId(null);
-    } else if (e.key === 'Escape') {
-      setRenamingId(null);
-    }
-  };
+  for (const t of tasks) if (t.completedAt === null) counts.set(t.regionId, (counts.get(t.regionId) ?? 0) + 1);
 
   return (
-    <nav className="sidebar" aria-label="Lists">
-      <div className="sidebar-heading">Lists</div>
-      <ul className="list-nav">
-        {lists.map((l, i) => (
-          <li key={l.id}>
-            {renamingId === l.id ? (
-              <input
-                className="list-rename"
-                autoFocus
-                value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
-                onKeyDown={(e) => submitRename(e, l.id)}
-                onBlur={() => setRenamingId(null)}
-                maxLength={80}
-                aria-label="Rename list"
-              />
-            ) : (
+    <nav className="sidebar" aria-label="Regions">
+      <div className="sidebar-heading">Regions</div>
+      <ul className="region-nav">
+        {shown.map((g, i) => (
+          <Fragment key={g.id}>
+            {grouped && (i === 0 || shown[i - 1].kind !== g.kind) && (
+              <li className="region-group" aria-hidden="true">
+                {REGION_KIND_LABELS[g.kind]}s
+              </li>
+            )}
+            <li className="region-row-wrap">
               <button
-                className={`list-item${l.id === activeListId ? ' is-active' : ''}`}
-                onClick={() => setActiveList(l.id)}
-                onDoubleClick={() => {
-                  setRenamingId(l.id);
-                  setRenameValue(l.name);
-                }}
-                title={i < 9 ? `Ctrl+${i + 1} · double-click to rename` : 'Double-click to rename'}
-                aria-current={l.id === activeListId ? 'page' : undefined}
+                className={`region-row${g.id === activeRegionId ? ' is-active' : ''}`}
+                style={{ ['--region' as string]: regionHue(g.colorIndex) }}
+                onClick={() => setActiveRegion(g.id)}
+                onDoubleClick={() => openRegionEditor(g.id)}
+                title={i < 9 ? `Ctrl+${i + 1} · double-click for settings` : 'Double-click for settings'}
+                aria-current={g.id === activeRegionId ? 'page' : undefined}
               >
-                <span className="list-dot" style={{ background: l.color, boxShadow: `0 0 10px ${l.color}` }} />
-                <span className="list-name">{l.name}</span>
-                <span className="list-count">{counts.get(l.id) ?? 0}</span>
+                <span className="region-dot" />
+                <span className="region-name" lang="bn-BD en">
+                  {g.name}
+                </span>
+                <span className="region-count">{counts.get(g.id) ?? 0}</span>
               </button>
-            )}
-            {lists.length > 1 && renamingId !== l.id && (
-              <button className="list-delete" onClick={() => void deleteList(l.id)} aria-label={`Delete list ${l.name}`} title="Delete list">
-                ×
-              </button>
-            )}
-          </li>
+              <span className="region-actions">
+                <button className="region-action" onClick={() => openRegionEditor(g.id)} aria-label={`Settings for ${g.name}`} title="Region settings">
+                  ⋯
+                </button>
+                <button className="region-action" onClick={() => void deleteRegion(g.id)} aria-label={`Delete region ${g.name}`} title="Delete region">
+                  ×
+                </button>
+              </span>
+              {notice?.regionId === g.id && (
+                <p className="inline-notice" role="alert">
+                  {notice.message}
+                </p>
+              )}
+            </li>
+          </Fragment>
         ))}
       </ul>
-      {creating ? (
-        <input
-          ref={newRef}
-          className="list-rename"
-          placeholder="List name"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={submitNew}
-          onBlur={() => setCreating(false)}
-          maxLength={80}
-          aria-label="New list name"
-        />
-      ) : (
-        <button className="list-add" onClick={() => setCreating(true)} title="Ctrl+Shift+N">
-          + New list
-        </button>
+      <button className="region-add" onClick={() => setCreatingRegion(true)} title="Ctrl+Shift+N">
+        + New region
+      </button>
+
+      {archived.length > 0 && (
+        <div className="region-archive">
+          <button className="region-archive-toggle" onClick={() => setArchiveOpen(!archiveOpen)} aria-expanded={archiveOpen}>
+            {archiveOpen ? '▾' : '▸'} Archived ({archived.length})
+          </button>
+          {archiveOpen && (
+            <ul className="region-nav">
+              {archived.map((g) => (
+                <li key={g.id} className="region-row-wrap">
+                  <div className="region-row is-archived" style={{ ['--region' as string]: regionHue(g.colorIndex) }}>
+                    <span className="region-dot" />
+                    <span className="region-name" lang="bn-BD en">
+                      {g.name}
+                    </span>
+                    <button className="region-restore" onClick={() => void unarchiveRegion(g.id)}>
+                      Restore
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
       <div className="sidebar-footer">

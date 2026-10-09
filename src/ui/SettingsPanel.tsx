@@ -1,8 +1,8 @@
-import { COMMANDS, type QualityTier } from '../contracts/events';
+import type { QualityTier } from '../contracts/events';
 import { useStore } from '../state/store';
 
 const TIERS: { id: QualityTier; label: string; hint: string }[] = [
-  { id: 'high', label: 'High', hint: 'Bloom, ambient occlusion, chromatic aberration' },
+  { id: 'high', label: 'High', hint: 'Bloom, subtle chromatic aberration, anti-aliasing' },
   { id: 'medium', label: 'Medium', hint: 'Bloom and anti-aliasing' },
   { id: 'low', label: 'Low', hint: 'No post-processing; best for integrated graphics' },
 ];
@@ -17,6 +17,7 @@ export function SettingsPanel() {
   const toggleShowCompleted = useStore((s) => s.toggleShowCompleted);
   const ambientMotion = useStore((s) => s.ambientMotion);
   const toggleAmbientMotion = useStore((s) => s.toggleAmbientMotion);
+  const setShortcutsOpen = useStore((s) => s.setShortcutsOpen);
 
   if (!open) return null;
 
@@ -32,7 +33,7 @@ export function SettingsPanel() {
 
         <section>
           <h3>Graphics quality</h3>
-          <div className="tier-list" role="radiogroup" aria-label="Graphics quality">
+          <div className="tier-options" role="radiogroup" aria-label="Graphics quality">
             {TIERS.map((t) => (
               <label key={t.id} className={`tier${quality === t.id ? ' is-on' : ''}`}>
                 <input type="radio" name="quality" checked={quality === t.id} onChange={() => setQuality(t.id)} />
@@ -63,14 +64,15 @@ export function SettingsPanel() {
 
         <section>
           <h3>Keyboard shortcuts</h3>
-          <ul className="shortcut-list">
-            {COMMANDS.filter((c) => c.shortcut).map((c) => (
-              <li key={c.id}>
-                <span>{c.title}</span>
-                <kbd>{c.shortcut}</kbd>
-              </li>
-            ))}
-          </ul>
+          <button
+            className="btn"
+            onClick={() => {
+              setOpen(false);
+              setShortcutsOpen(true);
+            }}
+          >
+            Show all shortcuts <kbd>?</kbd>
+          </button>
         </section>
       </div>
     </div>

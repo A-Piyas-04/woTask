@@ -22,7 +22,8 @@ export const PALETTE = {
   } satisfies Record<Priority, string>,
   nebula: ['#3b5bff', '#a855f7', '#14b8a6', '#f472b6', '#1e3a8a', '#6d28d9'],
   stars: ['#ffffff', '#cfe0ff', '#ffe9c7', '#d9c8ff'],
-  listColors: ['#7c9cff', '#4fd1a5', '#ffb547', '#f472b6', '#c084fc', '#38bdf8', '#ff6b7a', '#a3e635'],
+  /** Region identity hues; regions store an index into this array, never the hex. */
+  regionHues: ['#7c9cff', '#4fd1a5', '#ffb547', '#f472b6', '#c084fc', '#38bdf8', '#ff6b7a', '#a3e635'],
 } as const;
 
 /**
@@ -91,7 +92,7 @@ export const LIGHTING = {
   ],
 } as const;
 
-/** Each list is a constellation: tasks on a golden-angle spiral around a hub. */
+/** Each region is a constellation: tasks on a golden-angle spiral around a hub. */
 export const CONSTELLATION = {
   spiralSpacing: 1.95,
   spiralStart: 1.1,
@@ -114,7 +115,7 @@ export const CAMERA = {
   near: 0.1,
   far: 400,
   distance: 19,
-  /** When flying to a list, look slightly above the hub so the zone title clears the task input. */
+  /** When flying to a region, look slightly above the hub so the zone title clears the task input. */
   zoneFocusOffsetY: 1.3,
   minDistance: 7,
   maxDistance: 42,
@@ -162,3 +163,7 @@ export const EFFECTS = {
 } as const;
 
 export const FONT_STACK = '"Segoe UI Variable", "Segoe UI", "Nirmala UI", "Vrinda", system-ui, sans-serif';
+
+/** Hex for a region's stored `colorIndex` (wraps past the end of the palette). */
+export const regionHue = (colorIndex: number): string =>
+  PALETTE.regionHues[((colorIndex % PALETTE.regionHues.length) + PALETTE.regionHues.length) % PALETTE.regionHues.length];

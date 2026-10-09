@@ -3,7 +3,7 @@ use std::sync::MutexGuard;
 use rusqlite::Connection;
 use tauri::{State, WebviewWindow};
 
-use crate::db::{self, Db, List, Task};
+use crate::db::{self, Db, Region, Task};
 use crate::paths::DataDir;
 
 type CmdResult<T> = Result<T, String>;
@@ -17,28 +17,28 @@ fn conn<'a>(db: &'a Db) -> CmdResult<MutexGuard<'a, Connection>> {
 }
 
 #[tauri::command]
-pub fn list_lists(db: State<'_, Db>) -> CmdResult<Vec<List>> {
+pub fn get_regions(db: State<'_, Db>) -> CmdResult<Vec<Region>> {
     let c = conn(&db)?;
-    db::list_lists(&c).map_err(err)
+    db::get_regions(&c).map_err(err)
 }
 
 #[tauri::command]
-pub fn save_list(db: State<'_, Db>, list: List) -> CmdResult<List> {
+pub fn save_region(db: State<'_, Db>, region: Region) -> CmdResult<Region> {
     let c = conn(&db)?;
-    db::save_list(&c, &list).map_err(err)?;
-    Ok(list)
+    db::save_region(&c, &region).map_err(err)?;
+    Ok(region)
 }
 
 #[tauri::command]
-pub fn delete_list(db: State<'_, Db>, id: String) -> CmdResult<()> {
+pub fn delete_region(db: State<'_, Db>, id: String) -> CmdResult<()> {
     let c = conn(&db)?;
-    db::delete_list(&c, &id).map_err(err)
+    db::delete_region(&c, &id).map_err(err)
 }
 
 #[tauri::command]
-pub fn list_tasks(db: State<'_, Db>) -> CmdResult<Vec<Task>> {
+pub fn get_tasks(db: State<'_, Db>) -> CmdResult<Vec<Task>> {
     let c = conn(&db)?;
-    db::list_tasks(&c).map_err(err)
+    db::get_tasks(&c).map_err(err)
 }
 
 #[tauri::command]
@@ -55,15 +55,15 @@ pub fn delete_task(db: State<'_, Db>, id: String) -> CmdResult<()> {
 }
 
 #[tauri::command]
-pub fn reorder_tasks(db: State<'_, Db>, list_id: String, ordered_ids: Vec<String>) -> CmdResult<()> {
+pub fn reorder_tasks(db: State<'_, Db>, region_id: String, ordered_ids: Vec<String>) -> CmdResult<()> {
     let mut c = conn(&db)?;
-    db::reorder_tasks(&mut c, &list_id, &ordered_ids).map_err(err)
+    db::reorder_tasks(&mut c, &region_id, &ordered_ids).map_err(err)
 }
 
 #[tauri::command]
-pub fn seed(db: State<'_, Db>, lists: Vec<List>, tasks: Vec<Task>) -> CmdResult<()> {
+pub fn seed(db: State<'_, Db>, regions: Vec<Region>, tasks: Vec<Task>) -> CmdResult<()> {
     let mut c = conn(&db)?;
-    db::seed(&mut c, &lists, &tasks).map_err(err)
+    db::seed(&mut c, &regions, &tasks).map_err(err)
 }
 
 #[tauri::command]

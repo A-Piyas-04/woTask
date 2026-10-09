@@ -12,7 +12,7 @@ import { formatDue } from './labelFormat';
 export interface TaskOrbProps {
   orb: OrbPlacement;
   selected: boolean;
-  listColor: string;
+  regionColor: string;
   ambient: boolean;
   reducedMotion: boolean;
   segments: number;
@@ -41,7 +41,7 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
   const coreColor = done ? PALETTE.success : PALETTE.priority[task.priority];
 
   // Materials are created once with the initial colours; useFrame animates them afterwards.
-  const initial = useRef({ tint: PALETTE.priority[task.priority], core: coreColor, ring: props.listColor });
+  const initial = useRef({ tint: PALETTE.priority[task.priority], core: coreColor, ring: props.regionColor });
   const glass = useMemo(() => createGlassMaterial(initial.current.tint), []);
   const coreMat = useMemo(() => createGlowMaterial(initial.current.core, MATERIALS.core.intensity), []);
   const ringMat = useMemo(() => {
@@ -169,7 +169,7 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
     if (r) {
       moving = easing.damp(ringMat, 'opacity', p.selected ? 0.95 : 0, MOTION.hover.smoothTime * k, dt) || moving;
       r.visible = ringMat.opacity > 0.01;
-      tmp.ring.set(p.listColor).multiplyScalar(MATERIALS.ring.intensity);
+      tmp.ring.set(p.regionColor).multiplyScalar(MATERIALS.ring.intensity);
       ringMat.color.copy(tmp.ring);
       r.rotation.x = 1.2 + Math.sin(t * 0.7) * 0.15;
       r.rotation.y += dt * 0.9;

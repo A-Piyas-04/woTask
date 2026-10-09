@@ -14,7 +14,7 @@ export const PRIORITY_LABELS: Record<Priority, string> = {
 /** All timestamps are integer milliseconds since the Unix epoch. */
 export const TaskSchema = z.object({
   id: z.string().min(1),
-  listId: z.string().min(1),
+  regionId: z.string().min(1),
   title: z.string().min(1).max(500),
   notes: z.string().max(20_000),
   priority: PrioritySchema,
@@ -27,19 +27,42 @@ export const TaskSchema = z.object({
 });
 export type Task = z.infer<typeof TaskSchema>;
 
-export const ListSchema = z.object({
+export const RegionKindSchema = z.enum(['category', 'project', 'goal']);
+export type RegionKind = z.infer<typeof RegionKindSchema>;
+
+export const REGION_KIND_LABELS: Record<RegionKind, string> = {
+  category: 'Category',
+  project: 'Project',
+  goal: 'Goal',
+};
+
+/**
+ * A region is a user-defined category, project or goal; each one is a zone of space.
+ * Optional fields are nullable (not undefined) because the Rust side serialises `None` as `null`.
+ */
+export const RegionSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1).max(80),
-  color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  kind: RegionKindSchema,
+  description: z.string().max(200).nullable(),
+  /** Index into `PALETTE.regionHues`; the hex is never stored. */
+  colorIndex: z.number().int().min(0),
   position: z.number().int(),
+  /** Goals only. */
+  targetDate: z.number().int().nullable(),
   createdAt: z.number().int(),
+  /** Archived regions are hidden from the scene but keep their tasks. */
+  archivedAt: z.number().int().nullable(),
 });
-export type List = z.infer<typeof ListSchema>;
+export type Region = z.infer<typeof RegionSchema>;
 
 export const TaskArraySchema = z.array(TaskSchema);
-export const ListArraySchema = z.array(ListSchema);
+export const RegionArraySchema = z.array(RegionSchema);
 
 /** Fields a user may change on an existing task. */
-export type TaskPatch = Partial<Pick<Task, 'title' | 'notes' | 'priority' | 'dueAt' | 'completedAt' | 'listId' | 'tags'>>;
+export type TaskPatch = Partial<Pick<Task, 'title' | 'notes' | 'priority' | 'dueAt' | 'completedAt' | 'regionId' | 'tags'>>;
+
+/** Fields a user may change on an existing region. */
+export type RegionPatch = Partial<Pick<Region, 'name' | 'kind' | 'description' | 'colorIndex' | 'targetDate' | 'archivedAt'>>;
 
 export const isCompleted = (t: Task): boolean => t.completedAt !== null;

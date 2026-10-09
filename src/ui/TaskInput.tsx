@@ -6,7 +6,7 @@ export function TaskInput() {
   const ref = useRef<HTMLInputElement>(null);
   const addTask = useStore((s) => s.addTask);
   const focusToken = useStore((s) => s.inputFocusToken);
-  const listName = useStore((s) => s.lists.find((l) => l.id === s.activeListId)?.name ?? '');
+  const regionName = useStore((s) => s.regions.find((g) => g.id === s.activeRegionId)?.name ?? '');
 
   useEffect(() => {
     if (focusToken > 0) ref.current?.focus();
@@ -32,7 +32,7 @@ export function TaskInput() {
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={onKeyDown}
-        placeholder={`Add a task to ${listName || 'this list'}…   !1–!3 priority · #tag`}
+        placeholder={`Add a task to ${regionName || 'this region'}…   !1–!3 priority · #tag`}
         aria-label="New task"
         maxLength={500}
         spellCheck={false}

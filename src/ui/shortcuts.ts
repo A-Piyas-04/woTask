@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
 import type { AppCommandId } from '../contracts/events';
-import { useStore } from '../state/store';
+import { useStore, visibleRegions } from '../state/store';
 
-export const NEW_LIST_EVENT = 'wotask:new-list';
+export const NEW_REGION_EVENT = 'wotask:new-region';
 
 export function runCommand(id: AppCommandId): void {
   const s = useStore.getState();
@@ -38,14 +38,14 @@ export function runCommand(id: AppCommandId): void {
     case 'selection.clear':
       s.select(null);
       return;
-    case 'list.next':
-      s.cycleList(1);
+    case 'region.next':
+      s.cycleRegion(1);
       return;
-    case 'list.prev':
-      s.cycleList(-1);
+    case 'region.prev':
+      s.cycleRegion(-1);
       return;
-    case 'list.new':
-      window.dispatchEvent(new Event(NEW_LIST_EVENT));
+    case 'region.new':
+      window.dispatchEvent(new Event(NEW_REGION_EVENT));
       return;
     case 'history.undo':
       void s.undo();
@@ -59,6 +59,9 @@ export function runCommand(id: AppCommandId): void {
     case 'settings.open':
       s.setSettingsOpen(true);
       return;
+    case 'view.shortcuts':
+      s.setShortcutsOpen(!s.shortcutsOpen);
+      return;
   }
 }
 
@@ -70,6 +73,8 @@ function handleKey(e: KeyboardEvent): void {
   if (e.isComposing || e.keyCode === 229) return;
 
   const s = useStore.getState();
+  // First run: the onboarding card owns the keyboard until a region exists.
+  if (s.regions.length === 0) return;
   const ctrl = e.ctrlKey || e.metaKey;
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   const run = (id: AppCommandId) => {
@@ -87,28 +92,33 @@ function handleKey(e: KeyboardEvent): void {
   if (e.key === 'Escape') {
     if (s.paletteOpen) return s.setPaletteOpen(false);
     if (s.settingsOpen) return s.setSettingsOpen(false);
+    if (s.shortcutsOpen) return s.setShortcutsOpen(false);
     if (isEditable(e.target)) {
       (e.target as HTMLElement).blur();
       return;
     }
     if (s.editingId) return s.openEditor(null);
+    if (s.creatingRegion) return s.setCreatingRegion(false);
+    if (s.editingRegionId) return s.openRegionEditor(null);
     return run('selection.clear');
   }
 
   if (isEditable(e.target) || s.paletteOpen || s.settingsOpen) return;
+  if (e.key === '?') return run('view.shortcuts');
+  if (s.shortcutsOpen) return;
   // Let focused buttons handle their own activation keys.
   if (e.target instanceof HTMLButtonElement && (e.key === 'Enter' || e.key === ' ')) return;
 
-  if (ctrl && e.shiftKey && key === 'n') return run('list.new');
+  if (ctrl && e.shiftKey && key === 'n') return run('region.new');
   if (ctrl && key === 'z') return run('history.undo');
   if (ctrl && key === 'n') return run('task.new');
-  if (ctrl && e.key === 'ArrowRight') return run('list.next');
-  if (ctrl && e.key === 'ArrowLeft') return run('list.prev');
+  if (ctrl && e.key === 'ArrowRight') return run('region.next');
+  if (ctrl && e.key === 'ArrowLeft') return run('region.prev');
   if (ctrl && /^[1-9]$/.test(e.key)) {
-    const list = s.lists[Number(e.key) - 1];
-    if (list) {
+    const region = visibleRegions(s.regions)[Number(e.key) - 1];
+    if (region) {
       e.preventDefault();
-      s.setActiveList(list.id);
+      s.setActiveRegion(region.id);
     }
     return;
   }

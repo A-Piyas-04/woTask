@@ -2,8 +2,8 @@ import { Canvas } from '@react-three/fiber';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import type { QualityTier } from '../contracts/events';
-import type { List, Task } from '../contracts/task';
-import { CAMERA, PALETTE, QUALITY } from '../contracts/tokens';
+import type { Region, Task } from '../contracts/task';
+import { CAMERA, PALETTE, QUALITY, regionHue } from '../contracts/tokens';
 import { CameraRig, type CameraFocus } from './CameraRig';
 import { Composer } from './effects/Composer';
 import { pointerState, type PositionRegistry } from './interaction';
@@ -15,16 +15,16 @@ import { TaskOrb } from './objects/TaskOrb';
 import './scene.css';
 
 export interface SceneProps {
-  lists: List[];
-  /** Ordered tasks per list (already filtered for visibility). */
-  tasksByList: Record<string, Task[]>;
-  activeListId: string | null;
+  regions: Region[];
+  /** Ordered tasks per region (already filtered for visibility). */
+  tasksByRegion: Record<string, Task[]>;
+  activeRegionId: string | null;
   selectedId: string | null;
   quality: QualityTier;
   ambient: boolean;
   reducedMotion: boolean;
   onSelect(id: string | null): void;
-  onSelectList(id: string): void;
+  onSelectRegion(id: string): void;
   onOpen(id: string): void;
   onToggle(id: string): void;
 }
@@ -50,23 +50,24 @@ function usePageActive(): boolean {
  * focused and visible; otherwise it renders on demand, so a background window costs ~0% GPU.
  */
 export function Scene(props: SceneProps) {
-  const { lists, tasksByList, activeListId, selectedId, quality, ambient, reducedMotion } = props;
+  const { regions, tasksByRegion, activeRegionId, selectedId, quality, ambient, reducedMotion } = props;
   const q = QUALITY[quality];
   const labelLayer = useRef<HTMLDivElement>(null);
   const registry = useMemo<PositionRegistry>(() => new Map(), []);
   const pageActive = usePageActive();
   const animate = ambient && !reducedMotion && pageActive;
 
-  const layout = useMemo(() => computeLayout(lists, tasksByList), [lists, tasksByList]);
-  const accent = lists.find((l) => l.id === activeListId)?.color ?? PALETTE.accent;
+  const layout = useMemo(() => computeLayout(regions, tasksByRegion), [regions, tasksByRegion]);
+  const activeRegion = regions.find((g) => g.id === activeRegionId);
+  const accent = activeRegion ? regionHue(activeRegion.colorIndex) : PALETTE.accent;
 
   const focus = useMemo<CameraFocus | null>(() => {
     const sel = selectedId ? layout.byTaskId.get(selectedId) : undefined;
     if (sel) return { key: `task:${sel.task.id}`, x: sel.rest[0], y: sel.rest[1] };
-    const zone = layout.zones.find((z) => z.list.id === activeListId);
-    if (zone) return { key: `list:${zone.list.id}`, x: zone.center[0], y: zone.center[1] + CAMERA.zoneFocusOffsetY };
+    const zone = layout.zones.find((z) => z.region.id === activeRegionId);
+    if (zone) return { key: `region:${zone.region.id}`, x: zone.center[0], y: zone.center[1] + CAMERA.zoneFocusOffsetY };
     return null;
-  }, [layout, selectedId, activeListId]);
+  }, [layout, selectedId, activeRegionId]);
 
   const bgCenter = useMemo<[number, number]>(
     () => [(layout.bounds.minX + layout.bounds.maxX) / 2, (layout.bounds.minY + layout.bounds.maxY) / 2],
@@ -95,13 +96,13 @@ export function Scene(props: SceneProps) {
           <ParallaxBackground center={bgCenter} accent={accent} stars={q.stars} ambient={animate} />
           {layout.zones.map((zone) => (
             <Constellation
-              key={zone.list.id}
+              key={zone.region.id}
               zone={zone}
-              active={zone.list.id === activeListId}
+              active={zone.region.id === activeRegionId}
               ambient={animate}
               registry={registry}
               labelLayer={labelLayer}
-              onSelectList={props.onSelectList}
+              onSelectRegion={props.onSelectRegion}
             />
           ))}
           {layout.zones.flatMap((zone) =>
@@ -110,7 +111,7 @@ export function Scene(props: SceneProps) {
                 key={orb.task.id}
                 orb={orb}
                 selected={orb.task.id === selectedId}
-                listColor={zone.list.color}
+                regionColor={regionHue(zone.region.colorIndex)}
                 ambient={animate}
                 reducedMotion={reducedMotion}
                 segments={q.sphereSegments}

@@ -2,10 +2,13 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import type { Task } from '../contracts/task';
 import { Scene } from '../scene/Scene';
-import { orderTasks, useStore } from '../state/store';
+import { orderTasks, useStore, visibleRegions } from '../state/store';
 import { CommandPalette } from '../ui/CommandPalette';
 import { DetailPanel } from '../ui/DetailPanel';
+import { Onboarding } from '../ui/Onboarding';
+import { RegionPanel } from '../ui/RegionPanel';
 import { SettingsPanel } from '../ui/SettingsPanel';
+import { ShortcutsOverlay } from '../ui/ShortcutsOverlay';
 import { Sidebar } from '../ui/Sidebar';
 import { TaskInput } from '../ui/TaskInput';
 import { TitleBar } from '../ui/TitleBar';
@@ -13,10 +16,13 @@ import { Toasts } from '../ui/Toasts';
 import { useGlobalShortcuts } from '../ui/shortcuts';
 import { useReducedMotion } from '../ui/useReducedMotion';
 
+const FIRST_RUN_HINT_MS = 12_000;
+
 export function App() {
   const ready = useStore((s) => s.ready);
   const loadError = useStore((s) => s.loadError);
   const init = useStore((s) => s.init);
+  const hasRegions = useStore((s) => s.regions.length > 0);
 
   useEffect(() => {
     void init();
@@ -36,6 +42,13 @@ export function App() {
         </div>
       </div>
     );
+  if (!hasRegions)
+    return (
+      <div className="app">
+        <TitleBar />
+        <Onboarding />
+      </div>
+    );
 
   return (
     <div className="app">
@@ -46,88 +59,102 @@ export function App() {
       </div>
       <CommandPalette />
       <SettingsPanel />
+      <ShortcutsOverlay />
       <Toasts />
     </div>
   );
 }
 
+function HintLine() {
+  const firstRun = useStore((s) => s.firstRun);
+  const markSeen = useStore((s) => s.markFirstRunSeen);
+  const openShortcuts = useStore((s) => s.setShortcutsOpen);
+
+  useEffect(() => {
+    if (!firstRun) return;
+    const t = window.setTimeout(markSeen, FIRST_RUN_HINT_MS);
+    return () => window.clearTimeout(t);
+  }, [firstRun, markSeen]);
+
+  return (
+    <div className="hint-line">
+      {firstRun && (
+        <span className="first-run-hints" aria-hidden="true">
+          <span>
+            <kbd>N</kbd> new task
+          </span>
+          <span>
+            <kbd>Drag</kbd> explore
+          </span>
+          <span>
+            <kbd>Click</kbd> twice to complete
+          </span>
+        </span>
+      )}
+      <button className="hint-shortcuts" onClick={() => openShortcuts(true)}>
+        <kbd>?</kbd> shortcuts
+      </button>
+    </div>
+  );
+}
+
 function Main() {
-  const { lists, tasks, showCompleted, activeListId, selectedId, quality, ambientMotion } = useStore(
+  const { regions, tasks, showCompleted, activeRegionId, selectedId, quality, ambientMotion } = useStore(
     useShallow((s) => ({
-      lists: s.lists,
+      regions: s.regions,
       tasks: s.tasks,
       showCompleted: s.showCompleted,
-      activeListId: s.activeListId,
+      activeRegionId: s.activeRegionId,
       selectedId: s.selectedId,
       quality: s.quality,
       ambientMotion: s.ambientMotion,
     })),
   );
   const reducedMotion = useReducedMotion();
+  const shown = useMemo(() => visibleRegions(regions), [regions]);
 
-  const tasksByList = useMemo(() => {
+  const tasksByRegion = useMemo(() => {
     const out: Record<string, Task[]> = {};
-    for (const l of lists) out[l.id] = orderTasks(tasks, l.id, showCompleted);
+    for (const g of shown) out[g.id] = orderTasks(tasks, g.id, showCompleted);
     return out;
-  }, [lists, tasks, showCompleted]);
+  }, [shown, tasks, showCompleted]);
 
   const onSelect = useCallback((id: string | null) => {
     const s = useStore.getState();
     const task = id ? s.tasks.find((t) => t.id === id) : undefined;
-    if (task && task.listId !== s.activeListId) s.setActiveList(task.listId);
+    if (task && task.regionId !== s.activeRegionId) s.setActiveRegion(task.regionId);
     s.select(id);
   }, []);
-  const onSelectList = useCallback((id: string) => useStore.getState().setActiveList(id), []);
+  const onSelectRegion = useCallback((id: string) => useStore.getState().setActiveRegion(id), []);
   const onOpen = useCallback((id: string) => {
     const s = useStore.getState();
     const task = s.tasks.find((t) => t.id === id);
-    if (task && task.listId !== s.activeListId) s.setActiveList(task.listId);
+    if (task && task.regionId !== s.activeRegionId) s.setActiveRegion(task.regionId);
     s.openEditor(id);
   }, []);
   const onToggle = useCallback((id: string) => void useStore.getState().toggleComplete(id), []);
 
-  const hints = useMemo(
-    () => [
-      ['Drag', 'explore'],
-      ['Scroll', 'zoom'],
-      ['N', 'new'],
-      ['↑↓', 'select'],
-      ['Space / click again', 'complete'],
-      ['Enter', 'edit'],
-      ['Del', 'delete'],
-      ['Ctrl Z', 'undo'],
-      ['Ctrl K', 'commands'],
-    ],
-    [],
-  );
-
   return (
     <main className="main">
       <Scene
-        lists={lists}
-        tasksByList={tasksByList}
-        activeListId={activeListId}
+        regions={shown}
+        tasksByRegion={tasksByRegion}
+        activeRegionId={activeRegionId}
         selectedId={selectedId}
         quality={quality}
         ambient={ambientMotion}
         reducedMotion={reducedMotion}
         onSelect={onSelect}
-        onSelectList={onSelectList}
+        onSelectRegion={onSelectRegion}
         onOpen={onOpen}
         onToggle={onToggle}
       />
       <div className="overlay">
         <TaskInput />
-        <div className="hint-bar" aria-hidden="true">
-          {hints.map(([k, label]) => (
-            <span key={k}>
-              <kbd>{k}</kbd>
-              {label}
-            </span>
-          ))}
-        </div>
       </div>
+      <HintLine />
       <DetailPanel />
+      <RegionPanel />
     </main>
   );
 }

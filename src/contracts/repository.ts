@@ -1,4 +1,4 @@
-import type { List, Task } from './task';
+import type { Region, Task } from './task';
 
 /**
  * Persistence boundary. The Tauri implementation talks to SQLite in the Rust
@@ -8,20 +8,21 @@ import type { List, Task } from './task';
 export interface TaskRepository {
   readonly kind: 'tauri' | 'browser';
 
-  listLists(): Promise<List[]>;
-  createList(list: List): Promise<List>;
-  updateList(list: List): Promise<List>;
-  deleteList(id: string): Promise<void>;
+  getRegions(): Promise<Region[]>;
+  createRegion(region: Region): Promise<Region>;
+  updateRegion(region: Region): Promise<Region>;
+  /** Also deletes the region's tasks. */
+  deleteRegion(id: string): Promise<void>;
 
-  listTasks(): Promise<Task[]>;
+  getTasks(): Promise<Task[]>;
   /** Insert-or-replace. Used for create, update and undo-of-delete. */
   saveTask(task: Task): Promise<Task>;
   deleteTask(id: string): Promise<void>;
   /** Rewrites `position` for every id, in order. */
-  reorderTasks(listId: string, orderedIds: string[]): Promise<void>;
+  reorderTasks(regionId: string, orderedIds: string[]): Promise<void>;
 
-  /** Atomically inserts lists and tasks. Only called on an empty database. */
-  seed(lists: List[], tasks: Task[]): Promise<void>;
+  /** Atomically inserts regions and tasks. Only called on an empty database. */
+  seed(regions: Region[], tasks: Task[]): Promise<void>;
 
   /** Absolute directory where the database lives. */
   dataPath(): Promise<string>;

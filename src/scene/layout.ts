@@ -1,11 +1,11 @@
-import type { List, Task } from '../contracts/task';
+import type { Region, Task } from '../contracts/task';
 import { CAMERA, CONSTELLATION } from '../contracts/tokens';
 
 export type Vec3 = [number, number, number];
 
 export interface OrbPlacement {
   task: Task;
-  listId: string;
+  regionId: string;
   index: number;
   rest: Vec3;
   radius: number;
@@ -14,7 +14,7 @@ export interface OrbPlacement {
 }
 
 export interface Zone {
-  list: List;
+  region: Region;
   center: Vec3;
   radius: number;
   orbs: OrbPlacement[];
@@ -48,33 +48,33 @@ export function orbRadius(task: Task): number {
 }
 
 /**
- * Lists become zones on a grid (one zone roughly fills the screen at the default distance);
+ * Regions become zones on a grid (one zone roughly fills the screen at the default distance);
  * tasks sit on a golden-angle spiral inside their zone, first task closest to the hub.
  */
-export function computeLayout(lists: List[], tasksByList: Record<string, Task[]>): SceneLayout {
-  const maxCount = Math.max(1, ...lists.map((l) => tasksByList[l.id]?.length ?? 0));
+export function computeLayout(regions: Region[], tasksByRegion: Record<string, Task[]>): SceneLayout {
+  const maxCount = Math.max(1, ...regions.map((g) => tasksByRegion[g.id]?.length ?? 0));
   const zoneRadius = spiralRadius(maxCount) + 1.2;
   const cell = zoneRadius * 2 + CONSTELLATION.zoneGap;
-  const cols = Math.max(1, Math.ceil(Math.sqrt(lists.length)));
+  const cols = Math.max(1, Math.ceil(Math.sqrt(regions.length)));
 
   const zones: Zone[] = [];
   const byTaskId = new Map<string, OrbPlacement>();
 
-  lists.forEach((list, li) => {
-    const col = li % cols;
-    const row = Math.floor(li / cols);
+  regions.forEach((region, ri) => {
+    const col = ri % cols;
+    const row = Math.floor(ri / cols);
     // Offset alternate rows for a less grid-like, more celestial arrangement.
     const cx = col * cell * 1.15 + (row % 2) * cell * 0.45;
     const cy = -row * cell * 0.9;
-    const tasks = tasksByList[list.id] ?? [];
-    const spin = hash01(list.id) * Math.PI * 2;
+    const tasks = tasksByRegion[region.id] ?? [];
+    const spin = hash01(region.id) * Math.PI * 2;
 
     const orbs = tasks.map<OrbPlacement>((task, i) => {
       const r = CONSTELLATION.spiralSpacing * Math.sqrt(i + CONSTELLATION.spiralStart);
       const a = spin + i * GOLDEN_ANGLE;
       const placement: OrbPlacement = {
         task,
-        listId: list.id,
+        regionId: region.id,
         index: i,
         rest: [
           cx + Math.cos(a) * r * CONSTELLATION.ellipseX,
@@ -102,7 +102,7 @@ export function computeLayout(lists: List[], tasksByList: Record<string, Task[]>
       return best;
     });
 
-    zones.push({ list, center: [cx, cy, 0], radius: spiralRadius(tasks.length) + CONSTELLATION.orbitPadding, orbs, edges });
+    zones.push({ region, center: [cx, cy, 0], radius: spiralRadius(tasks.length) + CONSTELLATION.orbitPadding, orbs, edges });
   });
 
   const xs = zones.map((z) => z.center[0]);

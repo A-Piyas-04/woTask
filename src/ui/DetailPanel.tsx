@@ -1,27 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { PRIORITY_LABELS, type Priority, type Task } from '../contracts/task';
-import { PALETTE } from '../contracts/tokens';
-import { useStore } from '../state/store';
-
-const toDateInput = (ms: number | null): string => {
-  if (ms === null) return '';
-  const d = new Date(ms);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-};
-
-const fromDateInput = (v: string): number | null => {
-  if (!v) return null;
-  const [y, m, d] = v.split('-').map(Number);
-  return new Date(y, m - 1, d, 12, 0, 0).getTime();
-};
+import { useStore, visibleRegions } from '../state/store';
+import { fromDateInput, toDateInput } from './dates';
 
 function Editor({ task }: { task: Task }) {
   const updateTask = useStore((s) => s.updateTask);
   const deleteTask = useStore((s) => s.deleteTask);
   const toggleComplete = useStore((s) => s.toggleComplete);
   const close = useStore((s) => s.openEditor);
-  const lists = useStore((s) => s.lists);
+  const regions = useStore(useShallow((s) => visibleRegions(s.regions)));
 
   const [title, setTitle] = useState(task.title);
   const [notes, setNotes] = useState(task.notes);
@@ -83,7 +71,6 @@ function Editor({ task }: { task: Task }) {
               role="radio"
               aria-checked={task.priority === p}
               className={task.priority === p ? 'is-on' : ''}
-              style={{ ['--seg-color' as string]: PALETTE.priority[p] }}
               onClick={() => void updateTask(task.id, { priority: p })}
             >
               {PRIORITY_LABELS[p]}
@@ -98,11 +85,11 @@ function Editor({ task }: { task: Task }) {
           <input type="date" value={toDateInput(task.dueAt)} onChange={(e) => void updateTask(task.id, { dueAt: fromDateInput(e.target.value) })} />
         </label>
         <label className="field">
-          <span>List</span>
-          <select value={task.listId} onChange={(e) => void updateTask(task.id, { listId: e.target.value })}>
-            {lists.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
+          <span>Region</span>
+          <select value={task.regionId} onChange={(e) => void updateTask(task.id, { regionId: e.target.value })}>
+            {regions.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
               </option>
             ))}
           </select>

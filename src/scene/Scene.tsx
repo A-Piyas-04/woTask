@@ -42,14 +42,16 @@ const EMPTY_STATS: RegionStats = { open: 0, done: 0 };
 function usePageActive(): boolean {
   const [active, setActive] = useState(() => document.visibilityState === 'visible' && document.hasFocus());
   useEffect(() => {
-    const update = () => setActive(document.visibilityState === 'visible' && document.hasFocus());
-    window.addEventListener('focus', update);
-    window.addEventListener('blur', update);
-    document.addEventListener('visibilitychange', update);
+    const onFocus = () => setActive(document.visibilityState === 'visible');
+    const onBlur = () => setActive(false);
+    const onVisibility = () => setActive(document.visibilityState === 'visible' && document.hasFocus());
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('blur', onBlur);
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
-      window.removeEventListener('focus', update);
-      window.removeEventListener('blur', update);
-      document.removeEventListener('visibilitychange', update);
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('blur', onBlur);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, []);
   return active;
@@ -134,6 +136,7 @@ export function Scene(props: SceneProps) {
                 ambient={animate}
                 reducedMotion={reducedMotion}
                 segments={q.sphereSegments}
+                labelEligible={zone.region.id === activeRegionId}
                 registry={registry}
                 labels={labels}
                 labelLayer={labelLayer}

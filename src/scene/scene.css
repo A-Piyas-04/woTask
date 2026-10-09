@@ -26,8 +26,18 @@
   text-align: center;
   font-family: var(--font-stack);
   user-select: none;
-  transition: opacity var(--label-fade) ease-out;
   text-shadow: var(--label-shadow);
+  /* Culled labels stop painting once faded out; they keep their size for the culler's measurements. */
+  visibility: hidden;
+  transition:
+    opacity var(--label-fade) ease-out,
+    visibility 0s linear var(--label-fade);
+}
+.orb-label[data-visible='true'] {
+  visibility: visible;
+  transition:
+    opacity var(--label-fade) ease-out,
+    visibility 0s;
 }
 
 .orb-title {

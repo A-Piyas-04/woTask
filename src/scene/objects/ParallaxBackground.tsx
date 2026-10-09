@@ -2,7 +2,7 @@ import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { PALETTE, PARALLAX as P } from '../../contracts/tokens';
-import { getDotTexture, mixHex, paintNebula, rng } from '../materials/materials';
+import { getDotTexture, mixHex, paintBackdrop, paintNebula, rng } from '../materials/materials';
 
 interface Props {
   center: [number, number];
@@ -66,15 +66,18 @@ export function ParallaxBackground({ center, tint, stars, ambient }: Props) {
   const nebulaColors = useMemo(() => (tint ? bg.nebula.map((n) => mixHex(n, tint, bg.nebulaTint)) : [...bg.nebula]), [tint, bg]);
 
   const backdrop = useMemo(() => {
-    const tex = paintNebula(3, nebulaColors, {
+    const tex = paintBackdrop(3, nebulaColors, {
       base: [bg.base, bg.gradientTop],
       blobs: 30,
-      size: [1024, 768],
+      size: [512, 384],
       alpha: bg.nebulaAlpha * 2.5,
       vignette: bg.vignette,
     });
     // Opaque so the glass spheres' transmission pass can refract it.
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(...P.backdrop.size), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
+    const m = new THREE.Mesh(
+      new THREE.PlaneGeometry(...P.backdrop.size),
+      new THREE.MeshBasicMaterial({ map: tex, toneMapped: false, dithering: true }),
+    );
     m.position.z = P.backdrop.z;
     return m;
   }, [nebulaColors, bg]);

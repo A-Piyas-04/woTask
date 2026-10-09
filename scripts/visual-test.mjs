@@ -6,18 +6,23 @@ import { chromium } from 'playwright-core';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-const base = process.argv[2] ?? 'http://localhost:1420/';
-const outDir = process.argv[3] ?? 'docs/screenshots';
+const positional = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+const base = positional[0] ?? 'http://localhost:1420/';
+const outDir = positional[1] ?? 'docs/screenshots';
 mkdirSync(outDir, { recursive: true });
 
 const CLIP_LIMIT = 0.0005; // fraction of scene pixels allowed above 250 on every channel
 const MIN_LUMA_GAP = 4; // 0–255 luma between adjacent priority cores
 const TITLE_ROOM = 24 - 4; // CHROME.titleClearancePx with a little tolerance for damping
 
+// Hardware GPU via ANGLE/D3D11 so the stress fps is meaningful; pass --swiftshader to force software.
+const software = process.argv.includes('--swiftshader');
 const browser = await chromium.launch({
   channel: 'msedge',
   headless: true,
-  args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
+  args: software
+    ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader']
+    : ['--enable-gpu', '--ignore-gpu-blocklist', '--use-angle=d3d11'],
 });
 const viewport = { width: 1280, height: 800 };
 const lab = await browser.newPage();
@@ -85,6 +90,17 @@ async function analyze(buf, kind, arg = null) {
 async function open(query, { reducedMotion = 'reduce' } = {}) {
   const page = await browser.newPage({ viewport, reducedMotion });
   page.on('pageerror', (e) => console.log(`  pageerror: ${e}`));
+  await page.addInitScript(() => {
+    window.__draws = 0;
+    const P = WebGL2RenderingContext.prototype;
+    for (const name of ['drawElements', 'drawArrays', 'drawElementsInstanced', 'drawArraysInstanced']) {
+      const orig = P[name];
+      P[name] = function (...args) {
+        window.__draws++;
+        return orig.apply(this, args);
+      };
+    }
+  });
   await page.goto(`${base}?${query}`);
   await page.waitForSelector('canvas', { timeout: 20000 });
   await page.waitForTimeout(2500);
@@ -252,12 +268,42 @@ const shot = async (page, name, opts = {}) => {
   const b = await page.screenshot({ clip });
   const changed = await analyze(a, 'diff', b.toString('base64'));
   check('ambient motion: scene moves', changed > 0.001, `${(changed * 100).toFixed(3)}% pixels changed`);
+
+  // Unfocused window: the canvas drops to on-demand rendering, so nothing is drawn while idle.
+  const drawsOver = async (ms) => {
+    const d0 = await page.evaluate(() => window.__draws);
+    await page.waitForTimeout(ms);
+    return (await page.evaluate(() => window.__draws)) - d0;
+  };
+  const focused = await drawsOver(1000);
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  // Spheres glide back to rest (finite damping) before the canvas goes fully idle.
+  await page.waitForTimeout(4000);
+  const idle = await drawsOver(2000);
+  check('idle when unfocused: no draws', idle === 0, `${focused} draw calls/s focused, ${idle} in 2s unfocused`);
   await page.close();
 }
 
-// Stress: 500 tasks. Software rendering here, so the number is informational only.
+// Reduced motion with the window focused: no continuous rendering either.
+{
+  const page = await open('seed=demo');
+  await page.waitForTimeout(1000);
+  const d0 = await page.evaluate(() => window.__draws);
+  await page.waitForTimeout(2000);
+  const idle = (await page.evaluate(() => window.__draws)) - d0;
+  check('reduced motion: no continuous rendering', idle === 0, `${idle} draws in 2s`);
+  await page.close();
+}
+
+// Stress: 500 tasks with ambient motion on (continuous rendering). Informational: headless rAF timing
+// on this machine's GPU, not the target hardware.
 {
   const page = await open('seed=stress', { reducedMotion: 'no-preference' });
+  const renderer = await page.evaluate(() => {
+    const gl = document.createElement('canvas').getContext('webgl2');
+    const ext = gl?.getExtension('WEBGL_debug_renderer_info');
+    return gl ? String(gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER)) : 'none';
+  });
   const fps = await page.evaluate(
     () =>
       new Promise((resolve) => {
@@ -271,8 +317,8 @@ const shot = async (page, name, opts = {}) => {
         requestAnimationFrame(tick);
       }),
   );
-  const orbs = await page.$$eval('.orb-title', (els) => els.length);
-  info('stress fps (SwiftShader, not representative of GPU)', `${fps.toFixed(1)} fps with ${orbs} tasks`);
+  const orbs = await page.$$eval('.region-count', (els) => els.reduce((s, e) => s + Number(e.textContent), 0));
+  info('stress fps', `${fps.toFixed(1)} fps with ${orbs} tasks on ${renderer}`);
   await shot(page, '07-stress.png');
   await page.close();
 }

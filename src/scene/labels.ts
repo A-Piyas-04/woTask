@@ -98,8 +98,8 @@ export function LabelCuller({ registry, activeRegionId }: { registry: LabelRegis
     tmp.lastCam.copy(cam.position);
     const runCollision = speed < CAMERA.labelCollisionMaxSpeed;
 
-    const list = candidates.current;
-    list.length = 0;
+    const shown = candidates.current;
+    shown.length = 0;
     for (const e of registry.values()) {
       tmp.v.set(e.pos.x, e.pos.y - e.offsetY, e.pos.z);
       const dist = cam.position.distanceTo(tmp.v);
@@ -120,14 +120,14 @@ export function LabelCuller({ registry, activeRegionId }: { registry: LabelRegis
       const cy = (-tmp.v.y * 0.5 + 0.5) * height;
       const hw = e.width / 2 + PAD;
       const hh = e.height / 2 + PAD;
-      list.push({ e, fade, box: { x0: cx - hw, y0: cy - hh, x1: cx + hw, y1: cy + hh } });
+      shown.push({ e, fade, box: { x0: cx - hw, y0: cy - hh, x1: cx + hw, y1: cy + hh } });
     }
 
     if (runCollision) {
-      list.sort((a, b) => b.e.rank - a.e.rank);
+      shown.sort((a, b) => b.e.rank - a.e.rank);
       const kept: Box[] = [];
-      for (let i = 0; i < list.length; i++) {
-        const { e, box } = list[i];
+      for (let i = 0; i < shown.length; i++) {
+        const { e, box } = shown[i];
         if (i >= CAMERA.labelCollisionCap) {
           e.collided = !(e.selected || e.hovered);
           continue;
@@ -137,7 +137,7 @@ export function LabelCuller({ registry, activeRegionId }: { registry: LabelRegis
         if (!e.collided) kept.push(box);
       }
     }
-    for (const { e, fade } of list) write(e, e.collided ? 0 : fade);
+    for (const { e, fade } of shown) write(e, e.collided ? 0 : fade);
   }, FRAME.labels);
 
   return null;

@@ -17,6 +17,8 @@ export interface TaskOrbProps {
   ambient: boolean;
   reducedMotion: boolean;
   segments: number;
+  /** In the active region. Other orbs only mount a label when important, selected or hovered. */
+  labelEligible: boolean;
   registry: PositionRegistry;
   labels: LabelRegistry;
   labelLayer: RefObject<HTMLDivElement | null>;
@@ -121,6 +123,10 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
   }, [props.registry, task.id]);
 
   const [labelEl, setLabelEl] = useState<HTMLDivElement | null>(null);
+  // Mounting is a discrete decision (hover is an event, not per-frame): every mounted <Html> costs a
+  // projection and a style write each frame, so labels that can never be shown are not mounted.
+  const [hoverLabel, setHoverLabel] = useState(false);
+  const mountLabel = props.labelEligible || selected || hoverLabel || overdue || (style.ring && !done);
   const livePos = useMemo(() => new THREE.Vector3(...orb.rest), [orb.rest]);
   const label = useLabelEntry(props.labels, task.id, labelEl, {
     pos: livePos,
@@ -288,11 +294,13 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
   const onPointerOver = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
     hovered.current = true;
+    setHoverLabel(true);
     if (!pointerState.down) document.body.style.cursor = 'pointer';
     invalidate();
   };
   const onPointerOut = () => {
     hovered.current = false;
+    setHoverLabel(false);
     pressed.current = false;
     if (!pointerState.down) document.body.style.cursor = '';
     invalidate();
@@ -348,34 +356,36 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
       <mesh ref={overdueRing} geometry={sharedGeometry('overdueRing', 0)} material={overdueMat} raycast={noRaycast} visible={false} />
       <mesh ref={ring} geometry={sharedGeometry('ring', 0)} material={ringMat} raycast={noRaycast} visible={false} />
       <mesh ref={burst} geometry={sharedGeometry('burst', 0)} material={burstMat} raycast={noRaycast} visible={false} />
-      <Html
-        center
-        portal={props.labelLayer as RefObject<HTMLElement>}
-        position={[0, -labelRadius * CONSTELLATION.selectedScale - CONSTELLATION.labelOffset, 0]}
-        pointerEvents="none"
-        zIndexRange={[20, 0]}
-      >
-        <div
-          ref={setLabelEl}
-          className={`orb-label${done ? ' is-done' : ''}${selected ? ' is-selected' : ''}${overdue ? ' is-overdue' : ''}`}
-          data-priority={task.priority}
-          style={{ opacity: 0 }}
+      {mountLabel && (
+        <Html
+          center
+          portal={props.labelLayer as RefObject<HTMLElement>}
+          position={[0, -labelRadius * CONSTELLATION.selectedScale - CONSTELLATION.labelOffset, 0]}
+          pointerEvents="none"
+          zIndexRange={[20, 0]}
         >
-          <div className="orb-title" lang="bn-BD en">
-            {task.title}
-          </div>
-          {(due || task.tags.length > 0) && (
-            <div className="orb-meta">
-              {due && <span className={`orb-due tone-${due.tone}`}>{due.text}</span>}
-              {task.tags.slice(0, 2).map((t) => (
-                <span key={t} className="orb-tag">
-                  #{t}
-                </span>
-              ))}
+          <div
+            ref={setLabelEl}
+            className={`orb-label${done ? ' is-done' : ''}${selected ? ' is-selected' : ''}${overdue ? ' is-overdue' : ''}`}
+            data-priority={task.priority}
+            style={{ opacity: 0 }}
+          >
+            <div className="orb-title" lang="bn-BD en">
+              {task.title}
             </div>
-          )}
-        </div>
-      </Html>
+            {(due || task.tags.length > 0) && (
+              <div className="orb-meta">
+                {due && <span className={`orb-due tone-${due.tone}`}>{due.text}</span>}
+                {task.tags.slice(0, 2).map((t) => (
+                  <span key={t} className="orb-tag">
+                    #{t}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </Html>
+      )}
     </group>
   );
 });

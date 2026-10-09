@@ -126,11 +126,11 @@ const toRgb = (hex: string): string => {
   return `${Math.round(o.r * 255)}, ${Math.round(o.g * 255)}, ${Math.round(o.b * 255)}`;
 };
 
-/** Soft cloud texture painted from many radial gradients. No image files. */
+/** Soft transparent cloud layer painted from many radial gradients. No image files. */
 export function paintNebula(
   seed: number,
   colors: readonly string[],
-  opts: { base?: [string, string]; blobs?: number; size?: [number, number]; alpha?: number; vignette?: number } = {},
+  opts: { blobs?: number; size?: [number, number]; alpha?: number } = {},
 ): THREE.CanvasTexture {
   const [w, h] = opts.size ?? [1024, 768];
   const canvas = document.createElement('canvas');
@@ -140,14 +140,6 @@ export function paintNebula(
   const rand = rng(seed);
   const alpha = opts.alpha ?? 1;
   if (ctx) {
-    if (opts.base) {
-      const grad = ctx.createLinearGradient(0, 0, 0, h);
-      grad.addColorStop(0, opts.base[1]);
-      grad.addColorStop(0.55, opts.base[0]);
-      grad.addColorStop(1, opts.base[0]);
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, w, h);
-    }
     ctx.globalCompositeOperation = 'lighter';
     const blobs = opts.blobs ?? 26;
     for (let i = 0; i < blobs; i++) {
@@ -163,28 +155,77 @@ export function paintNebula(
       ctx.fillStyle = g;
       ctx.fillRect(x - r, y - r, r * 2, r * 2);
     }
-    if (opts.base && opts.vignette) {
-      ctx.globalCompositeOperation = 'source-over';
-      const v = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.25, w / 2, h / 2, Math.max(w, h) * 0.6);
-      v.addColorStop(0, 'rgba(0,0,0,0)');
-      v.addColorStop(1, `rgba(0,0,0,${opts.vignette})`);
-      ctx.fillStyle = v;
-      ctx.fillRect(0, 0, w, h);
-    }
-    if (!opts.base) {
-      // Fade edges to transparent so the plane's border never shows.
-      ctx.globalCompositeOperation = 'destination-in';
-      const edge = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.2, w / 2, h / 2, Math.max(w, h) * 0.55);
-      edge.addColorStop(0, 'rgba(0,0,0,1)');
-      edge.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = edge;
-      ctx.fillRect(0, 0, w, h);
-    }
+    // Fade edges to transparent so the plane's border never shows.
+    ctx.globalCompositeOperation = 'destination-in';
+    const edge = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.2, w / 2, h / 2, Math.max(w, h) * 0.55);
+    edge.addColorStop(0, 'rgba(0,0,0,1)');
+    edge.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = edge;
+    ctx.fillRect(0, 0, w, h);
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
+
+/**
+ * Opaque backdrop: vertical gradient, additive soft blobs and a vignette, computed in JS into a
+ * half-float linear texture. Canvas 2D dithers its gradients, and that ordered pattern shows up as
+ * a fine grid once the backdrop is magnified across the screen.
+ */
+export function paintBackdrop(
+  seed: number,
+  colors: readonly string[],
+  opts: { base: [string, string]; blobs: number; size: [number, number]; alpha: number; vignette: number },
+): THREE.DataTexture {
+  const [w, h] = opts.size;
+  const rand = rng(seed);
+  const srgb = (hex: string): [number, number, number] => {
+    const o = { r: 0, g: 0, b: 0 };
+    new THREE.Color(hex).getRGB(o, THREE.SRGBColorSpace);
+    return [o.r, o.g, o.b];
+  };
+  const bottom = srgb(opts.base[0]);
+  const top = srgb(opts.base[1]);
+  const blobs = Array.from({ length: opts.blobs }, () => {
+    const x = rand() * w;
+    const y = rand() * h;
+    const r = (0.08 + rand() * 0.24) * w;
+    const a = (0.25 + rand() * 0.75) * opts.alpha;
+    return { x, y, r, a, c: srgb(colors[Math.floor(rand() * colors.length)]) };
+  });
+  const v0 = Math.min(w, h) * 0.25;
+  const v1 = Math.max(w, h) * 0.6;
+  const data = new Uint16Array(w * h * 4);
+  const px = [0, 0, 0];
+  for (let y = 0; y < h; y++) {
+    // Row 0 of a DataTexture is the bottom; `y` here is measured from the top like the canvas version.
+    const row = (h - 1 - y) * w;
+    const t = Math.min(1, y / (h * 0.55));
+    for (let x = 0; x < w; x++) {
+      for (let k = 0; k < 3; k++) px[k] = top[k] + (bottom[k] - top[k]) * t;
+      for (const b of blobs) {
+        const d = Math.hypot(x - b.x, y - b.y) / b.r;
+        if (d >= 1) continue;
+        const f = d < 0.5 ? 1 - 1.2 * d : 0.8 * (1 - d);
+        for (let k = 0; k < 3; k++) px[k] += b.c[k] * b.a * f;
+      }
+      const dv = Math.hypot(x - w / 2, y - h / 2);
+      const vig = 1 - opts.vignette * THREE.MathUtils.clamp((dv - v0) / (v1 - v0), 0, 1);
+      const i = (row + x) * 4;
+      for (let k = 0; k < 3; k++) data[i + k] = THREE.DataUtils.toHalfFloat(THREE.MathUtils.clamp(srgbToLinear(px[k] * vig), 0, 1));
+      data[i + 3] = THREE.DataUtils.toHalfFloat(1);
+    }
+  }
+  const tex = new THREE.DataTexture(data, w, h, THREE.RGBAFormat, THREE.HalfFloatType);
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.colorSpace = THREE.LinearSRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+const srgbToLinear = (c: number): number => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
 
 let dotTexture: THREE.Texture | null = null;
 

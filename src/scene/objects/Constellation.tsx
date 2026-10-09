@@ -46,7 +46,7 @@ export function Constellation({ zone, ramp, stats, active, ambient, registry, la
   const hub = useRef<THREE.Mesh>(null);
   const ry = zone.radius / CONSTELLATION.ellipseX;
 
-  const hubMat = useMemo(() => createGlowMaterial(ramp.core, MATERIALS.hub.intensity), [ramp.core]);
+  const hubMat = useMemo(() => createGlowMaterial(ramp.base, MATERIALS.hub.intensity), [ramp.base]);
   useEffect(() => () => hubMat.dispose(), [hubMat]);
 
   // One line per orb along the constellation tree, in a single draw call; brighter at the parent end.

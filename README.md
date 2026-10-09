@@ -11,6 +11,25 @@ Nothing ever leaves your machine.
 
 ---
 
+## Download and use (Windows)
+
+Get the app from [GitHub Releases](https://github.com/A-Piyas-04/woTask/releases/latest).
+Under **Assets**, download `woTask-<version>-windows-x64.zip`, extract it to a folder you can
+write to (such as Desktop), and double-click `wotask.exe`. You can also download the `.exe`
+asset directly and run it from your chosen folder.
+
+No terminal, Node.js, Rust, installation wizard or first-launch build is needed. The download
+contains the finished app, with its interface and local assets embedded in the executable.
+
+Requires **64-bit Windows** and the **Microsoft Edge WebView2 Runtime** already installed.
+WebView2 is commonly present on Windows 10 and 11; it is not bundled or downloaded by woTask.
+If it is missing, the app shows a message explaining that it must be installed before opening
+woTask. Once that prerequisite is present, the app runs offline.
+
+**Do not use “Code → Download ZIP” or the release's “Source code” downloads to get the app.**
+Those contain source files, not a runnable EXE. If no release with the assets above is available
+yet, the maintainer still needs to publish one.
+
 ## Why
 
 Most task managers are lists. Lists are good at order and bad at shape — you cannot see that four
@@ -50,7 +69,7 @@ A chain lays itself out as a necklace around the space's hub. Direction is carri
 and by a gradient that is bright at the blocker and fades toward whatever is waiting. Press `L` on a
 task to choose what it comes after.
 
-## Running it
+## Running from source (developers)
 
 **Prerequisites**
 
@@ -78,6 +97,40 @@ npm run tauri build  # release build
 The release binary lands at `src-tauri/target/release/wotask.exe`. Installer bundling is off by
 design (`bundle.active: false` in `src-tauri/tauri.conf.json`) — the executable is meant to be
 copied and run.
+
+### Packaging a portable release (maintainers)
+
+With the project dependencies and Windows Rust/C++ build tools already installed, run:
+
+```bash
+npm run release:portable
+```
+
+This builds the Windows x64 release, runs the offline audit and creates:
+
+```text
+release/
+  woTask-<version>-windows-x64.exe
+  woTask-<version>-windows-x64.zip
+  SHA256SUMS.txt
+```
+
+The ZIP contains only `wotask.exe`: no source code, dependencies, personal database or WebView2
+runtime. The packaging command uses installed tools and cached Rust dependencies only; it fails
+if a required dependency is unavailable rather than downloading it. Generated release files are
+excluded from Git.
+
+Before publishing, run the verification commands below and smoke-test the packaged EXE on a
+Windows x64 PC with WebView2, without development tools and with networking disabled. Confirm
+that it opens, saves tasks and preserves them after restarting.
+
+Create a GitHub Release for the matching version tag (for example `v0.1.0`), upload the three
+files above as **Assets**, and publish it as the latest release. Building the package does not
+publish it automatically. Regular users then follow the download instructions at the top of
+this README.
+
+When updating, close woTask and replace the executable in its existing folder. Keep
+`woTask-data` intact so your tasks remain available.
 
 ## Where your data lives
 

@@ -1,37 +1,58 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { MATERIALS, PALETTE } from '../../contracts/tokens';
 
-const ORBS: { position: [number, number, number]; radius: number; strength: number }[] = [
-  { position: [-3.6, 2.2, -5], radius: 1.7, strength: 1.6 },
-  { position: [3.8, -1.6, -6], radius: 2.2, strength: 1.4 },
-  { position: [0.6, 3.6, -7], radius: 1.4, strength: 1.2 },
-  { position: [-2.4, -3.4, -5.5], radius: 1.6, strength: 1.3 },
+const PLANE = { width: 34, height: 21, z: -8 };
+const TEX = { width: 1024, height: 640 };
+
+/** Blob centres in 0..1 texture space, radius as a fraction of texture width. */
+const BLOBS: { x: number; y: number; r: number; alpha: number }[] = [
+  { x: 0.33, y: 0.3, r: 0.17, alpha: 0.95 },
+  { x: 0.7, y: 0.62, r: 0.2, alpha: 0.85 },
+  { x: 0.52, y: 0.18, r: 0.12, alpha: 0.7 },
+  { x: 0.36, y: 0.74, r: 0.14, alpha: 0.75 },
 ];
 
-/** Glowing shapes behind the cards: they give the glass something to refract and the bloom something to catch. */
+function paintBackdrop(accent: string): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = TEX.width;
+  canvas.height = TEX.height;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = MATERIALS.backdrop.color;
+    ctx.fillRect(0, 0, TEX.width, TEX.height);
+    ctx.globalCompositeOperation = 'lighter';
+    BLOBS.forEach((b, i) => {
+      const color = new THREE.Color(i === 0 ? accent : PALETTE.orbs[i % PALETTE.orbs.length]);
+      const rgb = `${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)}`;
+      const cx = b.x * TEX.width;
+      const cy = b.y * TEX.height;
+      const r = b.r * TEX.width;
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      g.addColorStop(0, `rgba(${rgb}, ${b.alpha})`);
+      g.addColorStop(0.45, `rgba(${rgb}, ${b.alpha * 0.45})`);
+      g.addColorStop(1, `rgba(${rgb}, 0)`);
+      ctx.fillStyle = g;
+      ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    });
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/**
+ * Soft glowing backdrop painted into a single opaque texture: one draw call, no image file,
+ * and opaque so the glass cards' transmission pass can refract it.
+ */
 export function Backdrop({ accent }: { accent: string }) {
-  const orbColors = useMemo(
-    () =>
-      ORBS.map((o, i) => {
-        const base = new THREE.Color(i === 0 ? accent : PALETTE.orbs[i % PALETTE.orbs.length]);
-        return base.multiplyScalar(o.strength);
-      }),
-    [accent],
-  );
+  const texture = useMemo(() => paintBackdrop(accent), [accent]);
+  useEffect(() => () => texture.dispose(), [texture]);
 
   return (
-    <group>
-      <mesh position={[0, 0, -9]}>
-        <planeGeometry args={[60, 40]} />
-        <meshStandardMaterial color={MATERIALS.backdrop.color} roughness={MATERIALS.backdrop.roughness} />
-      </mesh>
-      {ORBS.map((o, i) => (
-        <mesh key={i} position={o.position}>
-          <sphereGeometry args={[o.radius, 32, 32]} />
-          <meshBasicMaterial color={orbColors[i]} toneMapped={false} />
-        </mesh>
-      ))}
-    </group>
+    <mesh position={[0, 0, PLANE.z]}>
+      <planeGeometry args={[PLANE.width, PLANE.height]} />
+      <meshBasicMaterial map={texture} toneMapped={false} />
+    </mesh>
   );
 }

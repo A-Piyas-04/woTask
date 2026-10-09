@@ -41,16 +41,16 @@ export const MOTION = {
 
 export const MATERIALS = {
   glass: {
-    color: '#dfe6ff',
+    color: '#d6defa',
     transmission: 1,
-    roughness: 0.22,
-    thickness: 0.9,
+    roughness: 0.32,
+    thickness: 1.2,
     ior: 1.4,
     clearcoat: 1,
     clearcoatRoughness: 0.12,
     metalness: 0,
-    attenuationColor: '#b9c7ff',
-    attenuationDistance: 2.5,
+    attenuationColor: '#8796d6',
+    attenuationDistance: 1.6,
     envMapIntensity: 1.1,
   },
   glassHighPriority: {

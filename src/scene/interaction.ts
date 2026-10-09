@@ -17,4 +17,5 @@ export const FRAME = {
   camera: -4,
   orbs: -3,
   lines: -2,
+  labels: -1,
 } as const;

@@ -2,16 +2,25 @@ import { useFrame } from '@react-three/fiber';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { PALETTE, PARALLAX as P } from '../../contracts/tokens';
-import { getDotTexture, paintNebula, rng } from '../materials/materials';
+import { getDotTexture, mixHex, paintNebula, rng } from '../materials/materials';
 
 interface Props {
   center: [number, number];
-  accent: string;
+  /** Active region hue; contributes at most `PALETTE.background.nebulaTint` to the nebula. */
+  tint: string | null;
   stars: number;
   ambient: boolean;
 }
 
-function makePoints(count: number, seed: number, spread: readonly [number, number], zRange: readonly [number, number], size: number, colors: readonly string[], brightness: [number, number]) {
+function makePoints(
+  count: number,
+  seed: number,
+  spread: readonly [number, number],
+  zRange: readonly [number, number],
+  size: number,
+  colors: readonly string[],
+  brightness: readonly [number, number],
+) {
   const rand = rng(seed);
   const pos = new Float32Array(count * 3);
   const col = new Float32Array(count * 3);
@@ -20,7 +29,7 @@ function makePoints(count: number, seed: number, spread: readonly [number, numbe
     pos[i * 3] = (rand() - 0.5) * spread[0];
     pos[i * 3 + 1] = (rand() - 0.5) * spread[1];
     pos[i * 3 + 2] = zRange[0] + rand() * (zRange[1] - zRange[0]);
-    const b = brightness[0] + Math.pow(rand(), 3) * (brightness[1] - brightness[0]);
+    const b = brightness[0] + Math.pow(rand(), 2) * (brightness[1] - brightness[0]);
     c.set(colors[Math.floor(rand() * colors.length)]).multiplyScalar(b);
     col.set([c.r, c.g, c.b], i * 3);
   }
@@ -35,7 +44,6 @@ function makePoints(count: number, seed: number, spread: readonly [number, numbe
     depthWrite: false,
     blending: THREE.AdditiveBlending,
     sizeAttenuation: true,
-    toneMapped: false,
   });
   return new THREE.Points(geo, mat);
 }
@@ -48,45 +56,47 @@ function disposeObject(o: THREE.Mesh | THREE.Points) {
 }
 
 /**
- * Layers at very different depths. Because the camera translates while panning, near layers slide
- * past quickly and far layers barely move: real parallax, no tricks.
+ * Neutral deep field with a hint of the active region's hue. Layers sit at very different depths, so
+ * panning produces real parallax: near dust slides past quickly, far layers barely move.
  */
-export function ParallaxBackground({ center, accent, stars, ambient }: Props) {
+export function ParallaxBackground({ center, tint, stars, ambient }: Props) {
   const dust = useRef<THREE.Points>(null);
+  const bg = PALETTE.background;
+
+  const nebulaColors = useMemo(() => (tint ? bg.nebula.map((n) => mixHex(n, tint, bg.nebulaTint)) : [...bg.nebula]), [tint, bg]);
 
   const backdrop = useMemo(() => {
-    const tex = paintNebula(3, [accent, ...PALETTE.nebula], { base: '#05060d', blobs: 34, size: [1024, 768] });
+    const tex = paintNebula(3, nebulaColors, {
+      base: [bg.base, bg.gradientTop],
+      blobs: 30,
+      size: [1024, 768],
+      alpha: bg.nebulaAlpha * 2.5,
+      vignette: bg.vignette,
+    });
     // Opaque so the glass spheres' transmission pass can refract it.
     const m = new THREE.Mesh(new THREE.PlaneGeometry(...P.backdrop.size), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
     m.position.z = P.backdrop.z;
     return m;
-  }, [accent]);
+  }, [nebulaColors, bg]);
 
   const nebulae = useMemo(
     () =>
       P.nebula.map((n) => {
-        const tex = paintNebula(n.seed, PALETTE.nebula, { blobs: 22 });
+        const tex = paintNebula(n.seed, nebulaColors, { blobs: 20, alpha: bg.nebulaAlpha });
         const m = new THREE.Mesh(
           new THREE.PlaneGeometry(...n.size),
-          new THREE.MeshBasicMaterial({
-            map: tex,
-            transparent: true,
-            opacity: n.opacity,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending,
-            toneMapped: false,
-          }),
+          new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }),
         );
         m.position.z = n.z;
         return m;
       }),
-    [],
+    [nebulaColors, bg],
   );
 
-  const starField = useMemo(() => makePoints(stars, 101, P.stars.spread, P.stars.zRange, P.stars.size, PALETTE.stars, [0.35, 2.4]), [stars]);
+  const starField = useMemo(() => makePoints(stars, 101, P.stars.spread, P.stars.zRange, P.stars.size, PALETTE.stars, PALETTE.starOpacity), [stars]);
   const dustField = useMemo(
-    () => makePoints(P.dust.count, 202, P.dust.spread, P.dust.zRange, P.dust.size, [accent, '#ffffff', '#a5b4ff'], [0.15, 0.7]),
-    [accent],
+    () => makePoints(P.dust.count, 202, P.dust.spread, P.dust.zRange, P.dust.size, PALETTE.stars, [0.1, P.dust.opacity]),
+    [],
   );
 
   useEffect(() => () => disposeObject(backdrop), [backdrop]);

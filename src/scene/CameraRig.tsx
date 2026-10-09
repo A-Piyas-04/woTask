@@ -2,7 +2,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { easing } from 'maath';
 import { useEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
-import { CAMERA, MOTION } from '../contracts/tokens';
+import { CAMERA, CHROME, MOTION } from '../contracts/tokens';
 import { FRAME, pointerState } from './interaction';
 import type { SceneLayout } from './layout';
 
@@ -11,6 +11,23 @@ export interface CameraFocus {
   key: string;
   x: number;
   y: number;
+  /** World-space vertical extent to keep clear of the chrome: the zone title's baseline and the zone's lower edge. */
+  frame?: { top: number; bottom: number };
+}
+
+/**
+ * Camera y for a focus target: as close to `focus.y` as possible while the zone title stays
+ * `CHROME.titleClearancePx` below the canvas top and the zone stays above the quick-capture bar.
+ * If both cannot fit, the title wins.
+ */
+function framedY(focus: CameraFocus, distance: number, heightPx: number): number {
+  if (!focus.frame) return focus.y;
+  const fov = (CAMERA.fov * Math.PI) / 180;
+  const pxPerWorld = heightPx / (2 * Math.tan(fov / 2) * distance);
+  const sway = CAMERA.pointerParallax[1];
+  const minY = focus.frame.top - (heightPx / 2 - CHROME.titleClearancePx - CHROME.zoneTitlePx) / pxPerWorld + sway;
+  const maxY = focus.frame.bottom + (heightPx / 2 - CHROME.inputBarPx - CHROME.titleClearancePx) / pxPerWorld - sway;
+  return Math.max(minY, Math.min(focus.y, maxY));
 }
 
 interface Props {
@@ -47,7 +64,7 @@ export function CameraRig({ focus, bounds, reducedMotion }: Props) {
     const f = live.current.focus;
     if (!f) return;
     target.current.x = f.x;
-    target.current.y = f.y;
+    target.current.y = framedY(f, target.current.z, live.current.size.height);
     velocity.current.set(0, 0);
     flying.current = true;
     invalidate();

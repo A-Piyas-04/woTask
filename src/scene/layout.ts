@@ -1,5 +1,5 @@
 import type { Region, Task } from '../contracts/task';
-import { CAMERA, CONSTELLATION } from '../contracts/tokens';
+import { CAMERA, CONSTELLATION, MATERIALS } from '../contracts/tokens';
 
 export type Vec3 = [number, number, number];
 
@@ -44,7 +44,7 @@ const spiralRadius = (count: number): number =>
   CONSTELLATION.spiralSpacing * Math.sqrt(Math.max(count, 1) - 1 + CONSTELLATION.spiralStart) * CONSTELLATION.ellipseX;
 
 export function orbRadius(task: Task): number {
-  return task.completedAt !== null ? CONSTELLATION.completedRadius : CONSTELLATION.orbRadius[task.priority];
+  return task.completedAt !== null ? MATERIALS.completed.radius : MATERIALS.priority[task.priority].radius;
 }
 
 /**

@@ -3,27 +3,71 @@ import type { Priority } from './task';
 
 type Vec3 = [number, number, number];
 
+/**
+ * Colour rule: hue identifies the region. Priority is carried by size, inner luminance, surface
+ * finish and motion; completion by desaturation. The only non-region colours are `alert`
+ * (overdue) and `completedNeutral`; everything else in the chrome is neutral grey/white.
+ */
 export const PALETTE = {
-  base: '#05060d',
-  surface: '#121624',
-  surfaceRaised: '#1a1f31',
-  border: '#2a3150',
-  text: '#e9edf7',
-  textDim: '#8d96ad',
-  accent: '#7c9cff',
-  accentAlt: '#c084fc',
-  success: '#4fd1a5',
-  danger: '#ff6b7a',
-  priority: {
-    0: '#9aa6c4',
-    1: '#4fa3ff',
-    2: '#ffb547',
-    3: '#ff4f6a',
-  } satisfies Record<Priority, string>,
-  nebula: ['#3b5bff', '#a855f7', '#14b8a6', '#f472b6', '#1e3a8a', '#6d28d9'],
-  stars: ['#ffffff', '#cfe0ff', '#ffe9c7', '#d9c8ff'],
-  /** Region identity hues; regions store an index into this array, never the hex. */
-  regionHues: ['#7c9cff', '#4fd1a5', '#ffb547', '#f472b6', '#c084fc', '#38bdf8', '#ff6b7a', '#a3e635'],
+  /** Near-black, very slightly blue. Canvas clear colour and app background. */
+  base: '#0A0C11',
+  /** Muted, perceptually balanced (OKLCH L ≈ 0.66, C ≈ 0.075). Regions store an index, never the hex. */
+  regionHues: ['#7490BD', '#5F9E8F', '#C09562', '#B57D8E', '#8E83BC', '#6B9DB0', '#B9796B', '#8EA06E'],
+  /** The one global alert colour (overdue). Do not introduce a second. */
+  alert: '#D4705F',
+  completedNeutral: '#6B7280',
+  /** Mix targets for the per-region ramp. */
+  rampLight: '#EAF0F7',
+  rampDark: '#0A0C11',
+  white: '#FFFFFF',
+  background: {
+    base: '#0A0C11',
+    gradientTop: '#131823',
+    vignette: 0.35,
+    /** Maximum share of the active region hue in the nebula. */
+    nebulaTint: 0.08,
+    nebulaAlpha: 0.1,
+    /** Neutral nebula greys the region tint is mixed into. */
+    nebula: ['#2A3140', '#1E2430', '#343B4A'],
+  },
+  stars: ['#FFF3E0', '#DCE7FF'],
+  starOpacity: [0.35, 0.7] as [number, number],
+} as const;
+
+/** How each region hue becomes a ramp: `mix(base, target, amount)`. */
+export const RAMP = {
+  /** Emissive core: lightened and desaturated so bloom reads as a glow, never a neon lamp. */
+  core: { target: PALETTE.rampLight, amount: 0.45 },
+  dim: { target: PALETTE.rampDark, amount: 0.55 },
+  text: { target: PALETTE.white, amount: 0.55 },
+  completed: { target: PALETTE.completedNeutral, amount: 0.75 },
+} as const;
+
+/** Chrome colours (DOM). Neutral by design; region hue enters only via CSS variables. */
+export const UI = {
+  text: 'rgba(232,238,245,0.92)',
+  textStrong: 'rgba(232,238,245,0.88)',
+  textMuted: 'rgba(232,238,245,0.50)',
+  textFaint: 'rgba(232,238,245,0.38)',
+  textGhost: 'rgba(232,238,245,0.30)',
+  surface: 'rgba(255,255,255,0.04)',
+  border: 'rgba(255,255,255,0.08)',
+  hover: 'rgba(255,255,255,0.03)',
+  activeRow: 'rgba(255,255,255,0.04)',
+  panel: '#10131A',
+  labelShadow: '0 1px 3px rgba(0,0,0,0.85)',
+} as const;
+
+export const TYPE = {
+  family: '"Inter Variable", "Segoe UI Variable", "Segoe UI", "Nirmala UI", "Vrinda", system-ui, sans-serif',
+  taskTitle: { size: 12, weight: 500, tracking: '-0.01em', color: 'rgba(232,238,245,0.92)' },
+  taskMeta: { size: 10.5, weight: 400, tracking: '0', color: 'rgba(232,238,245,0.50)' },
+  zoneTitle: { size: 13, weight: 500, tracking: '0.22em' },
+  zoneSubtitle: { size: 10, weight: 400, tracking: '0.14em', color: 'rgba(232,238,245,0.38)' },
+  sidebarName: { size: 13, weight: 450, color: 'rgba(232,238,245,0.88)' },
+  sidebarCount: { size: 12, weight: 400, color: 'rgba(232,238,245,0.42)' },
+  sidebarHeader: { size: 10, tracking: '0.16em', color: 'rgba(232,238,245,0.35)' },
+  labelMaxWidth: 150,
 } as const;
 
 /**
@@ -38,57 +82,84 @@ export const MOTION = {
   color: { smoothTime: 0.2 },
   camera: { smoothTime: 0.35 },
   cameraFocus: { smoothTime: 0.6 },
-  burstSeconds: 0.9,
+  /** Completion shockwave in the region hue, ease-out. */
+  burst: { seconds: 0.7, peakOpacity: 0.5 },
+  /** High-priority core breathing: intensity × (1 ± amount) at `hz`. Ambient motion only. */
+  breathe: { amount: 0.12, hz: 0.45 },
   /** Gentle hover-in-place of each sphere (world units / radians per second). */
   float: { amplitude: [0.16, 0.22, 0.14] as Vec3, speed: [0.55, 0.42, 0.37] as Vec3 },
   /** Momentum after a drag is released (per-second decay rate). */
   panFriction: 4.5,
+  /** Label show/hide fade, ms. */
+  labelFadeMs: 150,
 } as const;
+
+export interface PriorityStyle {
+  radius: number;
+  coreIntensity: number;
+  roughness: number;
+  transmission: number;
+  /** Medium: faint inner halo around the core. */
+  halo: boolean;
+  /** High: equatorial ring in the core colour plus breathing. */
+  ring: boolean;
+}
 
 export const MATERIALS = {
   glass: {
     color: '#ffffff',
-    transmission: 1,
-    roughness: 0.08,
     thickness: 1.6,
     ior: 1.45,
     clearcoat: 1,
     clearcoatRoughness: 0.05,
-    iridescence: 0.85,
+    /** Kept low: a strong oil-film sheen adds hues that are not the region's. */
+    iridescence: 0.25,
     iridescenceIOR: 1.3,
-    iridescenceThicknessRange: [120, 480] as [number, number],
+    iridescenceThicknessRange: [120, 400] as [number, number],
     attenuationDistance: 2.2,
-    envMapIntensity: 1.25,
+    envMapIntensity: 1.0,
   },
-  glassCompleted: {
-    roughness: 0.3,
-    iridescence: 0.35,
-  },
+  priority: {
+    0: { radius: 0.46, coreIntensity: 0.8, roughness: 0.38, transmission: 0.88, halo: false, ring: false },
+    1: { radius: 0.55, coreIntensity: 1.5, roughness: 0.18, transmission: 0.95, halo: false, ring: false },
+    2: { radius: 0.66, coreIntensity: 2.6, roughness: 0.06, transmission: 1, halo: true, ring: false },
+    3: { radius: 0.78, coreIntensity: 3.8, roughness: 0.03, transmission: 1, halo: false, ring: true },
+  } satisfies Record<Priority, PriorityStyle>,
+  completed: { radius: 0.4, coreIntensity: 0.4, roughness: 0.45, transmission: 0.85, iridescence: 0.05 },
   core: {
     radiusRatio: 0.36,
-    intensity: 2.6,
-    hoverIntensity: 4,
-    selectedIntensity: 5,
-    completedIntensity: 1.8,
+    /** Multipliers on the priority intensity. */
+    hoverBoost: 1.25,
+    selectedBoost: 1.4,
   },
-  ring: { radiusRatio: 1.45, tube: 0.022, intensity: 3 },
-  hub: { radius: 0.42, intensity: 3.2 },
-  lines: { chainOpacity: 0.7 },
-  orbit: { opacity: 0.22 },
+  halo: { radiusRatio: 1.15, opacity: 0.25 },
+  /** High-priority equatorial ring, relative to the sphere radius. */
+  highRing: { radiusRatio: 1.22, tube: 0.012, opacity: 0.8 },
+  /** Overdue: thin outer ring in `PALETTE.alert`, slowly rotating. */
+  overdueRing: { radiusRatio: 1.42, tube: 0.011, opacity: 0.7, spin: 0.35 },
+  /** Selection ring in the region base hue. */
+  ring: { radiusRatio: 1.32, tube: 0.016, opacity: 0.85 },
+  hub: { radius: 0.3, intensity: 1.6 },
+  /** Goal progress arc around the hub: region hue at 40%, kept below the bloom threshold. */
+  goalArc: { radius: 0.62, width: 0.035, opacity: 0.4 },
+  lines: { activeOpacity: 0.22, inactiveOpacity: 0.1, parentBoost: 1.2, childFade: 0.7 },
+  /** Zone floor: radial-gradient disc plus a hairline boundary. */
+  zoneDisc: { centerAlpha: 0.05, hairlineOpacity: 0.1, inactiveFactor: 0.4 },
 } as const;
 
+/** Neutral lighting only: coloured reflections on the glass would break the hue rule. */
 export const LIGHTING = {
   envResolution: 256,
   ambient: 0.12,
-  key: { position: [6, 8, 10] as Vec3, intensity: 2.0, color: '#fff3e6' },
-  fill: { position: [-8, 2, 6] as Vec3, intensity: 0.7, color: '#cfe0ff' },
-  rim: { position: [0, -6, -8] as Vec3, intensity: 1.6, color: '#a5b4ff' },
+  key: { position: [6, 8, 10] as Vec3, intensity: 1.8, color: '#FFF3E6' },
+  fill: { position: [-8, 2, 6] as Vec3, intensity: 0.6, color: '#DCE7FF' },
+  rim: { position: [0, -6, -8] as Vec3, intensity: 1.2, color: '#DCE7FF' },
   /** Lightformer panels baked into the environment map, no HDRI. */
   formers: [
-    { position: [0, 6, -9] as Vec3, scale: [12, 2, 1] as Vec3, intensity: 3, color: '#ffffff' },
-    { position: [-6, 1, -1] as Vec3, scale: [10, 2.5, 1] as Vec3, intensity: 2.2, color: '#8fb0ff', rotationY: Math.PI / 2 },
-    { position: [6, 1, -1] as Vec3, scale: [10, 2.5, 1] as Vec3, intensity: 2.2, color: '#f0abfc', rotationY: -Math.PI / 2 },
-    { position: [0, -6, 3] as Vec3, scale: [14, 4, 1] as Vec3, intensity: 0.7, color: '#2dd4bf', rotationX: -Math.PI / 2 },
+    { position: [0, 6, -9] as Vec3, scale: [12, 2, 1] as Vec3, intensity: 2.4, color: '#FFFFFF' },
+    { position: [-6, 1, -1] as Vec3, scale: [10, 2.5, 1] as Vec3, intensity: 1.6, color: '#DCE7FF', rotationY: Math.PI / 2 },
+    { position: [6, 1, -1] as Vec3, scale: [10, 2.5, 1] as Vec3, intensity: 1.6, color: '#FFF3E0', rotationY: -Math.PI / 2 },
+    { position: [0, -6, 3] as Vec3, scale: [14, 4, 1] as Vec3, intensity: 0.5, color: '#C8CED8', rotationX: -Math.PI / 2 },
   ],
 } as const;
 
@@ -99,8 +170,6 @@ export const CONSTELLATION = {
   ellipseX: 1.25,
   depthJitter: 1.8,
   zoneGap: 2.5,
-  orbRadius: { 0: 0.5, 1: 0.56, 2: 0.64, 3: 0.74 } satisfies Record<Priority, number>,
-  completedRadius: 0.44,
   hoverScale: 1.14,
   selectedScale: 1.24,
   pressScale: 0.9,
@@ -110,13 +179,21 @@ export const CONSTELLATION = {
   orbitPadding: 1.3,
 } as const;
 
+/** Application chrome over the canvas, in CSS pixels; the camera frames zones to clear it. */
+export const CHROME = {
+  /** Quick-capture bar plus hint line at the bottom of the canvas. */
+  inputBarPx: 92,
+  /** Breathing room between a zone title and the top edge of the canvas. */
+  titleClearancePx: 24,
+  /** Approximate rendered height of the zone title block. */
+  zoneTitlePx: 40,
+} as const;
+
 export const CAMERA = {
   fov: 45,
   near: 0.1,
   far: 400,
   distance: 19,
-  /** When flying to a region, look slightly above the hub so the zone title clears the task input. */
-  zoneFocusOffsetY: 1.3,
   minDistance: 7,
   maxDistance: 42,
   zoomPerWheelPixel: 0.0012,
@@ -126,23 +203,30 @@ export const CAMERA = {
   boundsMargin: 8,
   /** Html labels: CSS scale 1 at the default distance. */
   labelDistanceFactor: 14,
+  /** Active-region labels are shown when the camera is closer than this. */
+  labelDistance: 24,
+  /** All labels fade out with camera distance between these two (smoothstep). */
+  labelFade: [20, 34] as [number, number],
+  /** Skip the label collision pass while the camera moves faster than this (world units / s). */
+  labelCollisionMaxSpeed: 4,
+  /** Collision pass only considers this many visible labels. */
+  labelCollisionCap: 60,
 } as const;
 
 /** Background layers at increasing depth; camera translation produces real parallax. */
 export const PARALLAX = {
   backdrop: { z: -110, size: [420, 300] as [number, number] },
   nebula: [
-    { z: -70, size: [300, 210] as [number, number], opacity: 0.55, seed: 11 },
-    { z: -38, size: [190, 140] as [number, number], opacity: 0.35, seed: 29 },
+    { z: -70, size: [300, 210] as [number, number], seed: 11 },
+    { z: -38, size: [190, 140] as [number, number], seed: 29 },
   ],
-  stars: { zRange: [-95, -30] as [number, number], spread: [260, 190] as [number, number], size: 0.55 },
-  dust: { zRange: [-6, 5] as [number, number], spread: [120, 90] as [number, number], size: 0.09, count: 420, drift: 0.012 },
+  stars: { zRange: [-95, -30] as [number, number], spread: [260, 190] as [number, number], size: 0.5 },
+  dust: { zRange: [-6, 5] as [number, number], spread: [120, 90] as [number, number], size: 0.08, count: 420, drift: 0.012, opacity: 0.35 },
 } as const;
 
 export interface QualitySettings {
   dpr: [number, number];
   bloom: boolean;
-  ao: boolean;
   chromaticAberration: boolean;
   smaa: boolean;
   stars: number;
@@ -150,19 +234,17 @@ export interface QualitySettings {
 }
 
 export const QUALITY: Record<QualityTier, QualitySettings> = {
-  high: { dpr: [1, 2], bloom: true, ao: false, chromaticAberration: true, smaa: true, stars: 2600, sphereSegments: 48 },
-  medium: { dpr: [1, 1.5], bloom: true, ao: false, chromaticAberration: false, smaa: true, stars: 1500, sphereSegments: 32 },
-  low: { dpr: [1, 1], bloom: false, ao: false, chromaticAberration: false, smaa: false, stars: 700, sphereSegments: 24 },
+  high: { dpr: [1, 2], bloom: true, chromaticAberration: true, smaa: true, stars: 2600, sphereSegments: 48 },
+  medium: { dpr: [1, 1.5], bloom: true, chromaticAberration: false, smaa: true, stars: 1500, sphereSegments: 32 },
+  low: { dpr: [1, 1], bloom: false, chromaticAberration: false, smaa: false, stars: 700, sphereSegments: 24 },
 };
 
 export const EFFECTS = {
-  bloom: { intensity: 1.1, luminanceThreshold: 0.55, luminanceSmoothing: 0.3, mipmapBlur: true },
-  ao: { aoRadius: 0.6, intensity: 1.6, distanceFalloff: 1 },
-  chromaticAberration: { offset: [0.0007, 0.0007] as [number, number] },
-  vignette: { offset: 0.2, darkness: 0.75 },
+  toneMappingExposure: 1.0,
+  bloom: { intensity: 0.55, luminanceThreshold: 0.88, luminanceSmoothing: 0.4, radius: 0.72, mipmapBlur: true },
+  chromaticAberration: { offset: [0.0006, 0.0006] as [number, number] },
+  vignette: { offset: 0.25, darkness: 0.45 },
 } as const;
-
-export const FONT_STACK = '"Segoe UI Variable", "Segoe UI", "Nirmala UI", "Vrinda", system-ui, sans-serif';
 
 /** Hex for a region's stored `colorIndex` (wraps past the end of the palette). */
 export const regionHue = (colorIndex: number): string =>

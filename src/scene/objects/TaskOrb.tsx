@@ -1,22 +1,24 @@
 import { Html } from '@react-three/drei';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { easing } from 'maath';
-import { memo, useEffect, useMemo, useRef, type RefObject } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import * as THREE from 'three';
 import { CAMERA, CONSTELLATION, MATERIALS, MOTION, PALETTE } from '../../contracts/tokens';
 import { FRAME, pointerState, type PositionRegistry } from '../interaction';
+import { useLabelEntry, type LabelRegistry } from '../labels';
 import type { OrbPlacement } from '../layout';
-import { createGlassMaterial, createGlowMaterial, sharedGeometry } from '../materials/materials';
+import { createGlassMaterial, createGlowMaterial, sharedGeometry, type RegionRamp } from '../materials/materials';
 import { formatDue } from './labelFormat';
 
 export interface TaskOrbProps {
   orb: OrbPlacement;
   selected: boolean;
-  regionColor: string;
+  ramp: RegionRamp;
   ambient: boolean;
   reducedMotion: boolean;
   segments: number;
   registry: PositionRegistry;
+  labels: LabelRegistry;
   labelLayer: RefObject<HTMLDivElement | null>;
   onSelect(id: string): void;
   onOpen(id: string): void;
@@ -24,9 +26,17 @@ export interface TaskOrbProps {
 }
 
 const noRaycast = () => null;
+const TAU = Math.PI * 2;
 
+export const isOverdue = (dueAt: number | null, completedAt: number | null, now: number): boolean =>
+  dueAt !== null && completedAt === null && dueAt < now;
+
+/**
+ * One task. Hue = its region (every state). Priority = size, core luminance, glass finish and motion.
+ * Completed = desaturated toward neutral. Overdue = thin alert ring, the one permitted exception.
+ */
 export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
-  const { orb, selected, segments } = props;
+  const { orb, selected, segments, ramp } = props;
   const { task } = orb;
   const live = useRef(props);
   live.current = props;
@@ -35,34 +45,59 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
   const group = useRef<THREE.Group>(null);
   const body = useRef<THREE.Group>(null);
   const ring = useRef<THREE.Mesh>(null);
+  const highRing = useRef<THREE.Mesh>(null);
+  const overdueRing = useRef<THREE.Mesh>(null);
+  const halo = useRef<THREE.Mesh>(null);
   const burst = useRef<THREE.Mesh>(null);
 
   const done = task.completedAt !== null;
-  const coreColor = done ? PALETTE.success : PALETTE.priority[task.priority];
+  const overdue = isOverdue(task.dueAt, task.completedAt, Date.now());
+  const style = MATERIALS.priority[task.priority];
 
   // Materials are created once with the initial colours; useFrame animates them afterwards.
-  const initial = useRef({ tint: PALETTE.priority[task.priority], core: coreColor, ring: props.regionColor });
-  const glass = useMemo(() => createGlassMaterial(initial.current.tint), []);
-  const coreMat = useMemo(() => createGlowMaterial(initial.current.core, MATERIALS.core.intensity), []);
+  const initial = useRef({ ramp, done, style });
+  const glass = useMemo(() => {
+    const { ramp: r, done: d, style: s } = initial.current;
+    const m = createGlassMaterial(d ? r.completed : r.base, d ? r.completedGlass : r.glass);
+    m.roughness = d ? MATERIALS.completed.roughness : s.roughness;
+    m.transmission = d ? MATERIALS.completed.transmission : s.transmission;
+    return m;
+  }, []);
+  const coreMat = useMemo(() => {
+    const { ramp: r, done: d, style: s } = initial.current;
+    return createGlowMaterial(d ? r.completed : r.core, d ? MATERIALS.completed.coreIntensity : s.coreIntensity);
+  }, []);
+  const haloMat = useMemo(() => {
+    const m = createGlowMaterial(initial.current.ramp.core, 1, { transparent: true, additive: true });
+    m.opacity = 0;
+    return m;
+  }, []);
+  const highRingMat = useMemo(() => {
+    const m = createGlowMaterial(initial.current.ramp.core, 1, { transparent: true });
+    m.opacity = 0;
+    return m;
+  }, []);
+  const overdueMat = useMemo(() => {
+    const m = createGlowMaterial(PALETTE.alert, 1, { transparent: true });
+    m.opacity = 0;
+    return m;
+  }, []);
   const ringMat = useMemo(() => {
-    const m = createGlowMaterial(initial.current.ring, MATERIALS.ring.intensity, { transparent: true });
+    const m = createGlowMaterial(initial.current.ramp.base, 1.2, { transparent: true });
     m.opacity = 0;
     return m;
   }, []);
   const burstMat = useMemo(() => {
-    const m = createGlowMaterial(PALETTE.success, 3, { transparent: true });
+    const m = createGlowMaterial(initial.current.ramp.base, 1.4, { transparent: true });
     m.side = THREE.DoubleSide;
     m.opacity = 0;
     return m;
   }, []);
   useEffect(
     () => () => {
-      glass.dispose();
-      coreMat.dispose();
-      ringMat.dispose();
-      burstMat.dispose();
+      for (const m of [glass, coreMat, haloMat, highRingMat, overdueMat, ringMat, burstMat]) m.dispose();
     },
-    [glass, coreMat, ringMat, burstMat],
+    [glass, coreMat, haloMat, highRingMat, overdueMat, ringMat, burstMat],
   );
 
   const hovered = useRef(false);
@@ -71,7 +106,7 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
   const burstStart = useRef<number | null>(null);
   const wasDone = useRef(done);
   const tmp = useMemo(
-    () => ({ core: new THREE.Color(), tint: new THREE.Color(), ring: new THREE.Color(), pos: new THREE.Vector3() }),
+    () => ({ core: new THREE.Color(), c: new THREE.Color(), pos: new THREE.Vector3(), intensity: { v: initial.current.style.coreIntensity } }),
     [],
   );
 
@@ -85,6 +120,18 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
     };
   }, [props.registry, task.id]);
 
+  const [labelEl, setLabelEl] = useState<HTMLDivElement | null>(null);
+  const livePos = useMemo(() => new THREE.Vector3(...orb.rest), [orb.rest]);
+  const label = useLabelEntry(props.labels, task.id, labelEl, {
+    pos: livePos,
+    offsetY: 0,
+    regionId: orb.regionId,
+    selected,
+    hovered: false,
+    important: false,
+    rank: 0,
+  });
+
   useEffect(() => {
     if (done && !wasDone.current && !live.current.reducedMotion) burstStart.current = -1;
     wasDone.current = done;
@@ -93,7 +140,7 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
 
   useEffect(() => {
     invalidate();
-  }, [selected, task.priority, orb.rest, invalidate]);
+  }, [selected, task.priority, orb.rest, ramp, overdue, invalidate]);
 
   useEffect(
     () => () => {
@@ -107,16 +154,21 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
     const b = body.current;
     if (!g || !b) return;
     const p = live.current;
+    const r = p.ramp;
+    const task = p.orb.task;
     const dt = Math.min(rawDelta, 1 / 20);
     const t = state.clock.elapsedTime;
     const k = p.reducedMotion ? 0.0001 : 1;
-    const isDone = p.orb.task.completedAt !== null;
+    const isDone = task.completedAt !== null;
+    const isOverdueNow = isOverdue(task.dueAt, task.completedAt, Date.now());
+    const s = MATERIALS.priority[task.priority];
+    const radius = isDone ? MATERIALS.completed.radius : s.radius;
     const [rx, ry, rz] = p.orb.rest;
 
     if (mountedAt.current === null) {
       mountedAt.current = t;
       g.position.set(rx, ry, rz - (p.reducedMotion ? 0 : 3));
-      b.scale.setScalar(p.reducedMotion ? p.orb.radius : 0.001);
+      b.scale.setScalar(p.reducedMotion ? radius : 0.001);
     }
     if (!p.reducedMotion && t - mountedAt.current < Math.min(p.orb.index, 24) * CONSTELLATION.enterStagger) {
       state.invalidate();
@@ -137,66 +189,100 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
     );
     moving = easing.damp3(g.position, tmp.pos, MOTION.layout.smoothTime * k, dt) || moving;
 
-    const scale =
-      p.orb.radius *
-      (pressed.current ? CONSTELLATION.pressScale : p.selected ? CONSTELLATION.selectedScale : hovered.current ? CONSTELLATION.hoverScale : 1);
-    const scaleTime = pressed.current ? MOTION.press.smoothTime : t - mountedAt.current < 1.2 ? MOTION.enter.smoothTime : MOTION.hover.smoothTime;
-    moving = easing.damp3(b.scale, scale, scaleTime * k, dt) || moving;
+    const stateScale = pressed.current ? CONSTELLATION.pressScale : p.selected ? CONSTELLATION.selectedScale : hovered.current ? CONSTELLATION.hoverScale : 1;
+    const scaleTime = pressed.current ? MOTION.press.smoothTime : t - mountedAt.current < 1.2 ? MOTION.enter.smoothTime : MOTION.layout.smoothTime;
+    moving = easing.damp3(b.scale, radius * stateScale, scaleTime * k, dt) || moving;
     if (floating) b.rotation.y += dt * 0.25;
 
-    // Core glow: priority colour, brighter on hover/selection, green when complete.
-    const intensity = isDone
-      ? MATERIALS.core.completedIntensity
-      : p.selected
-        ? MATERIALS.core.selectedIntensity
-        : hovered.current
-          ? MATERIALS.core.hoverIntensity
-          : MATERIALS.core.intensity;
-    const pulse = floating && p.selected ? 1 + Math.sin(t * 3) * 0.15 : 1;
-    tmp.core.set(isDone ? PALETTE.success : PALETTE.priority[p.orb.task.priority]).multiplyScalar(intensity * pulse);
+    // Core luminance carries priority; hover/selection boost it, high priority breathes.
+    const base = isDone ? MATERIALS.completed.coreIntensity : s.coreIntensity;
+    const boost = isDone ? 1 : p.selected ? MATERIALS.core.selectedBoost : hovered.current ? MATERIALS.core.hoverBoost : 1;
+    moving = easing.damp(tmp.intensity, 'v', base * boost, MOTION.color.smoothTime * k, dt) || moving;
+    const breathing = s.ring && !isDone && floating;
+    const breath = breathing ? 1 + Math.sin(t * TAU * MOTION.breathe.hz) * MOTION.breathe.amount : 1;
+    tmp.core.set(isDone ? r.completed : r.core).multiplyScalar(tmp.intensity.v * breath);
     moving = easing.dampC(coreMat.color, tmp.core, MOTION.color.smoothTime * k, dt) || moving;
 
-    tmp.tint.set(isDone ? PALETTE.success : PALETTE.priority[p.orb.task.priority]);
-    moving = easing.dampC(glass.attenuationColor, tmp.tint, MOTION.color.smoothTime * k, dt) || moving;
+    // Glass: tinted by the region hue; finish carries priority.
+    moving = easing.dampC(glass.attenuationColor, tmp.c.set(isDone ? r.completed : r.base), MOTION.color.smoothTime * k, dt) || moving;
+    moving = easing.dampC(glass.color, tmp.c.set(isDone ? r.completedGlass : r.glass), MOTION.color.smoothTime * k, dt) || moving;
+    moving = easing.damp(glass, 'roughness', isDone ? MATERIALS.completed.roughness : s.roughness, MOTION.color.smoothTime * k, dt) || moving;
+    moving = easing.damp(glass, 'transmission', isDone ? MATERIALS.completed.transmission : s.transmission, MOTION.color.smoothTime * k, dt) || moving;
     moving =
-      easing.damp(glass, 'roughness', isDone ? MATERIALS.glassCompleted.roughness : MATERIALS.glass.roughness, MOTION.color.smoothTime * k, dt) || moving;
-    moving =
-      easing.damp(glass, 'iridescence', isDone ? MATERIALS.glassCompleted.iridescence : MATERIALS.glass.iridescence, MOTION.color.smoothTime * k, dt) ||
-      moving;
+      easing.damp(glass, 'iridescence', isDone ? MATERIALS.completed.iridescence : MATERIALS.glass.iridescence, MOTION.color.smoothTime * k, dt) || moving;
 
-    // Selection ring.
-    const r = ring.current;
-    if (r) {
-      moving = easing.damp(ringMat, 'opacity', p.selected ? 0.95 : 0, MOTION.hover.smoothTime * k, dt) || moving;
-      r.visible = ringMat.opacity > 0.01;
-      tmp.ring.set(p.regionColor).multiplyScalar(MATERIALS.ring.intensity);
-      ringMat.color.copy(tmp.ring);
-      r.rotation.x = 1.2 + Math.sin(t * 0.7) * 0.15;
-      r.rotation.y += dt * 0.9;
-      if (p.selected && !p.reducedMotion) moving = true;
+    // Medium: faint inner halo.
+    const h = halo.current;
+    if (h) {
+      moving = easing.damp(haloMat, 'opacity', s.halo && !isDone ? MATERIALS.halo.opacity : 0, MOTION.color.smoothTime * k, dt) || moving;
+      haloMat.color.set(r.core);
+      h.visible = haloMat.opacity > 0.01;
     }
 
-    // Completion shockwave.
+    // High: thin equatorial ring in the core colour.
+    const hr = highRing.current;
+    if (hr) {
+      moving = easing.damp(highRingMat, 'opacity', s.ring && !isDone ? MATERIALS.highRing.opacity * breath : 0, MOTION.color.smoothTime * k, dt) || moving;
+      highRingMat.color.set(r.core);
+      hr.visible = highRingMat.opacity > 0.01;
+      hr.scale.setScalar(b.scale.x * MATERIALS.highRing.radiusRatio);
+    }
+
+    // Overdue: alert ring, slowly rotating.
+    const od = overdueRing.current;
+    if (od) {
+      moving = easing.damp(overdueMat, 'opacity', isOverdueNow ? MATERIALS.overdueRing.opacity : 0, MOTION.color.smoothTime * k, dt) || moving;
+      od.visible = overdueMat.opacity > 0.01;
+      od.scale.setScalar(b.scale.x * MATERIALS.overdueRing.radiusRatio);
+      od.rotation.x = 1.1;
+      if (floating) od.rotation.z += dt * MATERIALS.overdueRing.spin;
+    }
+
+    // Selection ring in the region hue.
+    const sr = ring.current;
+    if (sr) {
+      moving = easing.damp(ringMat, 'opacity', p.selected ? MATERIALS.ring.opacity : 0, MOTION.hover.smoothTime * k, dt) || moving;
+      sr.visible = ringMat.opacity > 0.01;
+      ringMat.color.set(r.base).multiplyScalar(1.2);
+      sr.scale.setScalar(b.scale.x * MATERIALS.ring.radiusRatio);
+      sr.rotation.x = 1.2 + (floating ? Math.sin(t * 0.7) * 0.15 : 0);
+      if (floating) sr.rotation.y += dt * 0.6;
+    }
+
+    // Completion shockwave in the region hue, ease-out.
     const bu = burst.current;
     if (bu) {
       if (burstStart.current === -1) burstStart.current = t;
       if (burstStart.current !== null) {
-        const u = (t - burstStart.current) / MOTION.burstSeconds;
-        if (u >= 1) {
+        const u = (t - burstStart.current) / MOTION.burst.seconds;
+        if (u >= 1 || p.reducedMotion) {
           burstStart.current = null;
           bu.visible = false;
         } else {
           bu.visible = true;
           const e = 1 - Math.pow(1 - u, 3);
-          bu.scale.setScalar(p.orb.radius * (1.1 + e * 3.2));
-          burstMat.opacity = (1 - u) * 0.9;
+          bu.scale.setScalar(radius * (1.1 + e * 2.6));
+          burstMat.color.set(r.base).multiplyScalar(1.4);
+          burstMat.opacity = (1 - e) * MOTION.burst.peakOpacity;
           bu.quaternion.copy(state.camera.quaternion);
           moving = true;
         }
       }
     }
 
-    if (moving) state.invalidate();
+    // Keep the label culler's view of this orb current.
+    const le = label.current;
+    if (le) {
+      le.pos.copy(g.position);
+      le.offsetY = radius * CONSTELLATION.selectedScale + CONSTELLATION.labelOffset;
+      le.selected = p.selected;
+      le.hovered = hovered.current;
+      le.important = (s.ring && !isDone) || isOverdueNow;
+      le.regionId = p.orb.regionId;
+      le.rank = (p.selected ? 1000 : 0) + (hovered.current ? 500 : 0) + (isDone ? 0 : task.priority * 10) + (isOverdueNow ? 25 : 0);
+    }
+
+    if (moving || (breathing && p.ambient)) state.invalidate();
   }, FRAME.orbs);
 
   const onPointerOver = (e: ThreeEvent<PointerEvent>) => {
@@ -233,6 +319,7 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
   };
 
   const due = formatDue(task.dueAt);
+  const labelRadius = done ? MATERIALS.completed.radius : style.radius;
 
   return (
     <group ref={group}>
@@ -248,18 +335,33 @@ export const TaskOrb = memo(function TaskOrb(props: TaskOrbProps) {
           onDoubleClick={onDoubleClick}
         />
         <mesh geometry={sharedGeometry('core', 0)} material={coreMat} scale={MATERIALS.core.radiusRatio} raycast={noRaycast} />
+        <mesh
+          ref={halo}
+          geometry={sharedGeometry('core', 0)}
+          material={haloMat}
+          scale={MATERIALS.core.radiusRatio * MATERIALS.halo.radiusRatio}
+          raycast={noRaycast}
+          visible={false}
+        />
       </group>
-      <mesh ref={ring} geometry={sharedGeometry('ring', 0)} material={ringMat} scale={orb.radius * MATERIALS.ring.radiusRatio * CONSTELLATION.selectedScale} raycast={noRaycast} visible={false} />
+      <mesh ref={highRing} geometry={sharedGeometry('highRing', 0)} material={highRingMat} rotation-x={1.25} raycast={noRaycast} visible={false} />
+      <mesh ref={overdueRing} geometry={sharedGeometry('overdueRing', 0)} material={overdueMat} raycast={noRaycast} visible={false} />
+      <mesh ref={ring} geometry={sharedGeometry('ring', 0)} material={ringMat} raycast={noRaycast} visible={false} />
       <mesh ref={burst} geometry={sharedGeometry('burst', 0)} material={burstMat} raycast={noRaycast} visible={false} />
       <Html
         center
         portal={props.labelLayer as RefObject<HTMLElement>}
-        position={[0, -orb.radius * CONSTELLATION.selectedScale - CONSTELLATION.labelOffset, 0]}
+        position={[0, -labelRadius * CONSTELLATION.selectedScale - CONSTELLATION.labelOffset, 0]}
         distanceFactor={CAMERA.labelDistanceFactor}
         pointerEvents="none"
         zIndexRange={[20, 0]}
       >
-        <div className={`orb-label${done ? ' is-done' : ''}${selected ? ' is-selected' : ''}`}>
+        <div
+          ref={setLabelEl}
+          className={`orb-label${done ? ' is-done' : ''}${selected ? ' is-selected' : ''}${overdue ? ' is-overdue' : ''}`}
+          data-priority={task.priority}
+          style={{ opacity: 0 }}
+        >
           <div className="orb-title" lang="bn-BD en">
             {task.title}
           </div>

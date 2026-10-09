@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import type { Task } from '../contracts/task';
 import { Scene } from '../scene/Scene';
+import type { RegionStats } from '../scene/objects/Constellation';
 import { orderTasks, useStore, visibleRegions } from '../state/store';
 import { CommandPalette } from '../ui/CommandPalette';
 import { DetailPanel } from '../ui/DetailPanel';
@@ -17,6 +18,8 @@ import { useGlobalShortcuts } from '../ui/shortcuts';
 import { useReducedMotion } from '../ui/useReducedMotion';
 
 const FIRST_RUN_HINT_MS = 12_000;
+/** Dev-only `?labels=off`: visual tests sample WebGL pixels without DOM text on top. */
+const HIDE_LABELS = import.meta.env.DEV && new URLSearchParams(location.search).get('labels') === 'off';
 
 export function App() {
   const ready = useStore((s) => s.ready);
@@ -119,6 +122,16 @@ function Main() {
     return out;
   }, [shown, tasks, showCompleted]);
 
+  const regionStats = useMemo(() => {
+    const out: Record<string, RegionStats> = {};
+    for (const t of tasks) {
+      const s = (out[t.regionId] ??= { open: 0, done: 0 });
+      if (t.completedAt === null) s.open++;
+      else s.done++;
+    }
+    return out;
+  }, [tasks]);
+
   const onSelect = useCallback((id: string | null) => {
     const s = useStore.getState();
     const task = id ? s.tasks.find((t) => t.id === id) : undefined;
@@ -139,6 +152,8 @@ function Main() {
       <Scene
         regions={shown}
         tasksByRegion={tasksByRegion}
+        regionStats={regionStats}
+        hideLabels={HIDE_LABELS}
         activeRegionId={activeRegionId}
         selectedId={selectedId}
         quality={quality}

@@ -1,0 +1,87 @@
+.scene-root {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  isolation: isolate;
+}
+
+.card-label-host {
+  pointer-events: none;
+  user-select: none;
+}
+
+.card-label {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 22px 0 34px;
+  color: #0b1020;
+  backface-visibility: hidden;
+  font-family: var(--font-stack);
+}
+
+.card-check {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid rgba(11, 16, 32, 0.45);
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.card-label.is-done .card-check {
+  background: #2fb98b;
+  border-color: #2fb98b;
+}
+
+.card-text {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.card-title {
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.card-label.is-done .card-title {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  color: rgba(11, 16, 32, 0.55);
+}
+
+.card-meta {
+  display: flex;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(11, 16, 32, 0.66);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.card-due.tone-overdue {
+  color: #c81e3a;
+  font-weight: 700;
+}
+.card-due.tone-today {
+  color: #b45309;
+  font-weight: 700;
+}
+.card-tag {
+  color: rgba(40, 52, 120, 0.85);
+}

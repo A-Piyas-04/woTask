@@ -13,67 +13,37 @@ Nothing ever leaves your machine.
 
 ## Download and install (Windows)
 
-### Get the installer
+### 1. Download
 
-1. Open [GitHub Releases](https://github.com/A-Piyas-04/woTask/releases/latest).
-2. Expand **Assets** at the bottom of the release.
-3. Download `woTask-<version>-windows-x64-setup.exe`.
+Go to the [latest release](https://github.com/A-Piyas-04/woTask/releases/latest), open **Assets**,
+and download:
 
-**If you only see "Source code (zip)" and "Source code (tar.gz)", the installer has not been
-attached to that release yet.** A published release does not automatically include a built app;
-the maintainer must attach it using the steps below. GitHub's **Code → Download ZIP** also gives
-you source files, not the app.
+**`woTask-0.1.0-windows-x64-setup.exe`**
 
-| Download | What it is | For regular users? |
-|---|---|---|
-| `woTask-<version>-windows-x64-setup.exe` | The installer | **Yes** — this is the one |
-| `SHA256SUMS.txt` | Checksum for verifying the download | Optional |
-| `Source code (zip)` / `Source code (tar.gz)` | Project source files | No — these require a developer build |
+That one file is the app. Ignore the rest — the two "Source code" files are added automatically by
+GitHub and are not the app.
 
-To check the download against `SHA256SUMS.txt`, open PowerShell in your Downloads folder and run
-`Get-FileHash woTask-<version>-windows-x64-setup.exe`. The hash it prints should match the one in
-that file. This is optional; skip it if you do not care.
+### 2. Install
 
-### Install it once
+Double-click it. It takes a few seconds and asks for no administrator rights.
 
-1. Double-click `woTask-<version>-windows-x64-setup.exe`.
-2. Windows may warn that the publisher is unknown, because the installer is not code-signed.
-   Choose **More info → Run anyway**.
-3. Click through the installer. It takes a few seconds.
-4. It installs for your user account only, so there is **no administrator prompt**, and puts
-   woTask in `%LOCALAPPDATA%\woTask`.
+> **Windows will warn about an unknown publisher.** The installer is not code-signed.
+> Choose **More info → Run anyway**.
 
-The installer creates:
+You get a **Desktop shortcut** and a **Start Menu entry**.
 
-- a **woTask shortcut on your Desktop**,
-- a **woTask entry in the Start Menu**,
-- an entry in **Settings → Apps → Installed apps**, so it uninstalls like any other program.
+### 3. Open it
 
-### Then just open it
+Click the woTask icon. Nothing is ever built, downloaded or set up again.
 
-From that point on, open woTask from the **Desktop shortcut** or the **Start Menu** — or type
-`woTask` into Start. Nothing is built, downloaded or set up again. Your data is saved locally.
+---
 
-- **No terminal or build commands.**
-- **No Node.js or Rust required.**
-- **No administrator rights.**
-- **No account or internet connection needed, during install or after.**
-
-### Requirements
-
-- **64-bit Windows.**
-- **Microsoft Edge WebView2 Runtime already installed.** It is commonly present on Windows 10 and 11.
-  WebView2 is neither bundled nor downloaded — not by the installer and not by the app. If it is
-  missing, woTask explains that you must install it before opening the app.
-
-### Updating
-
-1. Download the new installer and run it. It replaces the installed copy in place.
-2. Your tasks are untouched: they live outside the install folder.
-
-To remove woTask, use **Settings → Apps → Installed apps → woTask → Uninstall**. That deletes
-the app and its shortcuts but leaves your tasks in `%APPDATA%\woTask`, so reinstalling brings
-them back. Delete that folder by hand if you want them gone.
+| | |
+|---|---|
+| **Needs** | 64-bit Windows, and Microsoft Edge WebView2 — already on most Windows 10 and 11 machines |
+| **Offline** | No account, no internet, during install or after |
+| **Update** | Run the new installer over the old one; your tasks are kept |
+| **Uninstall** | Settings → Apps → Installed apps → woTask. Tasks stay in `%APPDATA%\woTask` |
 
 ## Why
 

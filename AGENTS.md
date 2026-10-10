@@ -2,7 +2,8 @@
 
 ## Project
 Offline Windows desktop task manager. Tauri 2 + React 19 + React Three Fiber.
-Ships as ONE portable .exe. No network access at runtime, ever.
+Ships as ONE Windows installer (NSIS, per-user) wrapping a single self-contained .exe.
+No network access at runtime, ever - not in the app and not in the installer.
 
 ## Hard rules
 1. Treat `src/contracts/` as frozen. If you believe a contract is wrong, STOP and report it.

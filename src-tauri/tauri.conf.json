@@ -32,12 +32,35 @@
     }
   },
   "bundle": {
-    "active": false,
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "publisher": "A-Piyas-04",
+    "shortDescription": "Offline 3D task manager",
+    "longDescription": "A task manager that puts your work in space. Offline, local-first, no account and no sync.",
+    "copyright": "Copyright (c) 2026 A-Piyas-04",
+    "category": "Productivity",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "skip"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "English"
+        ],
+        "displayLanguageSelector": false,
+        "compression": "lzma",
+        "startMenuFolder": "woTask",
+        "installerIcon": "icons/icon.ico"
+      }
+    }
   }
 }

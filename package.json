@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "tauri": "tauri",
-    "release:portable": "node scripts/release-portable.mjs",
+    "release:installer": "node scripts/release-installer.mjs",
     "audit:offline": "node scripts/offline-audit.mjs",
     "test:ui": "node scripts/ui-test.mjs",
     "test:palette": "node scripts/palette-test.mjs",
